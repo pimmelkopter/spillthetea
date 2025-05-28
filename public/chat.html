@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geteilter Chat - Chat Share</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .chat-preview {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            min-height: 200px;
+        }
+
+        .chat-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e1e5e9;
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 15px;
+            animation: messageSlide 0.3s ease-out;
+            flex-direction: column;
+        }
+
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.right {
+            align-items: flex-end;
+        }
+
+        .message.left {
+            align-items: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message.left .message-bubble {
+            background: white;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .message.right .message-bubble {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-info {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .message-sender {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            opacity: 0.8;
+        }
+
+        .message.left .message-sender {
+            color: #666;
+        }
+
+        .message.right .message-sender {
+            color: #4facfe;
+            text-align: right;
+        }
+
+        .message-image {
+            max-width: 100%;
+            border-radius: 12px;
+            margin-top: 8px;
+        }
+
+        .highlighted-text {
+            background: rgba(255, 0, 0, 0.3);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .highlight-circle {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 0, 0, 0.7);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #721c24;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        .error h2 {
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .password-form {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .password-form input {
+            padding: 10px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            margin: 10px;
+            font-size: 16px;
+        }
+
+        .password-form button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        .password-form button:hover {
+            opacity: 0.9;
+        }
+
+        .chat-info {
+            background: #e8f5e8;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            color: #155724;
+        }
+
+        .back-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            color: #333;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .back-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 236, 210, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .message-bubble {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💬 Chat Share</h1>
+            <p>Geteilter Chat</p>
+        </div>
+
+        <div class="main-content">
+            <a href="/" class="back-button">← Zurück zur Hauptseite</a>
+            
+            <div id="loading" class="loading">
+                <div class="loading-spinner"></div>
+            </div>
+
+            <div id="passwordForm" class="password-form" style="display: none;">
+                <h3>🔒 Passwort erforderlich</h3>
+                <p>Dieser Chat ist passwortgeschützt.</p>
+                <input type="password" id="passwordInput" placeholder="Passwort eingeben">
+                <button onclick="submitPassword()">Entsperren</button>
+                <div id="passwordError" style="color: #721c24; margin-top: 10px; display: none;"></div>
+            </div>
+
+            <div id="chatContent" style="display: none;">
+                <div id="chatInfo" class="chat-info" style="display: none;"></div>
+                
+                <div class="chat-preview">
+                    <div id="messagesContainer"></div>
+                </div>
+            </div>
+
+            <div id="errorMessage" class="error" style="display: none;">
+                <h2>❌ Fehler</h2>
+                <p id="errorText"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chatData = null;
+        let currentUrl = null;
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('passwordForm').style.display = 'none';
+            document.getElementById('chatContent').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('errorText').textContent = message;
+        }
+
+        function showPasswordForm() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('chatContent').style.display = 'none';
+            document.getElementById('passwordForm').style.display = 'block';
+            document.getElementById('passwordInput').focus();
+        }
+
+        function showChatContent() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('passwordForm').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('chatContent').style.display = 'block';
+        }
+
+        async function loadChat(password = null) {
+            try {
+                const path = window.location.pathname;
+                const match = path.match(/\/chat\/([a-z-]+)/);
+                
+                if (!match) {
+                    showError('Ungültige Chat-URL');
+                    return;
+                }
+
+                currentUrl = match[1];
+                const url = `/api/chat/${currentUrl}${password ? `?password=${encodeURIComponent(password)}` : ''}`;
+                
+                const response = await fetch(url);
+                const result = await response.json();
+
+                if (!response.ok) {
+                    if (response.status === 401 && result.requiresPassword) {
+                        showPasswordForm();
+                        return;
+                    } else if (response.status === 404) {
+                        showError('Chat nicht gefunden');
+                        return;
+                    } else if (response.status === 410) {
+                        showError(result.error || 'Chat ist nicht mehr verfügbar');
+                        return;
+                    } else {
+                        showError(result.error || 'Fehler beim Laden des Chats');
+                        return;
+                    }
+                }
+
+                chatData = result.data;
+                displayChat();
+                showChatInfo(result);
+                showChatContent();
+
+            } catch (error) {
+                console.error('Load chat error:', error);
+                showError('Verbindungsfehler. Bitte versuche es später erneut.');
+            }
+        }
+
+        function showChatInfo(result) {
+            const infoDiv = document.getElementById('chatInfo');
+            let infoText = '';
+
+            if (result.maxViews > 0) {
+                infoText += `👁️ Aufrufe: ${result.views}/${result.maxViews} `;
+            }
+
+            if (result.expiresAt) {
+                const expiryDate = new Date(result.expiresAt);
+                const now = new Date();
+                const timeLeft = expiryDate.getTime() - now.getTime();
+                
+                if (timeLeft > 0) {
+                    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    
+                    if (days > 0) {
+                        infoText += `⏰ Läuft ab in ${days} Tag(en) und ${hours} Stunde(n)`;
+                    } else if (hours > 0) {
+                        infoText += `⏰ Läuft ab in ${hours} Stunde(n)`;
+                    } else {
+                        infoText += `⏰ Läuft bald ab`;
+                    }
+                }
+            }
+
+            if (infoText) {
+                infoDiv.textContent = infoText;
+                infoDiv.style.display = 'block';
+            }
+        }
+
+        function displayChat() {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+
+            chatData.chats.forEach((chat, chatIndex) => {
+                if (chatIndex > 0) {
+                    const separator = document.createElement('div');
+                    separator.style.cssText = 'margin: 30px 0; padding: 20px 0; border-top: 2px solid #e1e5e9;';
+                    container.appendChild(separator);
+                }
+
+                if (chat.title) {
+                    const title = document.createElement('div');
+                    title.className = 'chat-title';
+                    title.textContent = chat.title;
+                    container.appendChild(title);
+                }
+
+                chat.messages.forEach(message => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${message.sender === 'you' ? 'right' : 'left'}`;
+
+                    // Add sender name if available
+                    if (chatData.persons && chatData.persons[message.sender]) {
+                        const senderDiv = document.createElement('div');
+                        senderDiv.className = 'message-sender';
+                        senderDiv.textContent = chatData.persons[message.sender];
+                        messageDiv.appendChild(senderDiv);
+                    }
+
+                    const bubble = document.createElement('div');
+                    bubble.className = 'message-bubble';
+
+                    if (message.text) {
+                        const textDiv = document.createElement('div');
+                        textDiv.textContent = message.text;
+                        bubble.appendChild(textDiv);
+                    }
+
+                    if (message.image) {
+                        const img = document.createElement('img');
+                        img.src = message.image;
+                        img.className = 'message-image';
+                        img.onerror = function() {
+                            this.style.display = 'none';
+                        };
+                        bubble.appendChild(img);
+                    }
+
+                    if (message.time || message.date) {
+                        const info = document.createElement('div');
+                        info.className = 'message-info';
+                        const timeStr = message.time ? message.time : '';
+                        const dateStr = message.date ? message.date : '';
+                        info.textContent = `${dateStr} ${timeStr}`.trim();
+                        bubble.appendChild(info);
+                    }
+
+                    messageDiv.appendChild(bubble);
+                    container.appendChild(messageDiv);
+                });
+            });
+
+            // Apply highlights if any
+            if (chatData.highlights && chatData.highlights.length > 0) {
+                // Implementation for highlights would go here
+                // For now, just log that highlights exist
+                console.log('Highlights found:', chatData.highlights);
+            }
+        }
+
+        async function submitPassword() {
+            const password = document.getElementById('passwordInput').value;
+            const errorDiv = document.getElementById('passwordError');
+            
+            if (!password) {
+                errorDiv.textContent = 'Bitte gib ein Passwort ein';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            errorDiv.style.display = 'none';
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('passwordForm').style.display = 'none';
+
+            await loadChat(password);
+        }
+
+        // Handle Enter key in password input
+        document.addEventListener('DOMContentLoaded', () => {
+            const passwordInput = document.getElementById('passwordInput');
+            if (passwordInput) {
+                passwordInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        submitPassword();
+                    }
+                });
+            }
+        });
+
+        // Load chat on page load
+        window.addEventListener('load', () => {
+            loadChat();
+        });
+    </script>
+</body>
+</html>

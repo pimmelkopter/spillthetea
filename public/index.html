@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Share</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .form-section {
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        input[type="text"]:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #4facfe;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .inline-form {
+            display: flex;
+            gap: 10px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .inline-form .form-group {
+            flex: 1;
+            min-width: 150px;
+            margin-bottom: 0;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            color: #333;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            color: #333;
+        }
+
+        .person-manager {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .person-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .person-tag {
+            background: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            border: 2px solid #e1e5e9;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .person-tag.editable {
+            cursor: pointer;
+        }
+
+        .person-tag.editable:hover {
+            border-color: #4facfe;
+        }
+
+        .chat-preview {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            min-height: 200px;
+        }
+
+        .chat-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e1e5e9;
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 15px;
+            animation: messageSlide 0.3s ease-out;
+            flex-direction: column;
+        }
+
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.right {
+            align-items: flex-end;
+        }
+
+        .message.left {
+            align-items: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message.left .message-bubble {
+            background: white;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .message.right .message-bubble {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message-info {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .message-sender {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            opacity: 0.8;
+        }
+
+        .message.left .message-sender {
+            color: #666;
+        }
+
+        .message.right .message-sender {
+            color: #4facfe;
+            text-align: right;
+        }
+
+        .message-image {
+            max-width: 100%;
+            border-radius: 12px;
+            margin-top: 8px;
+        }
+
+        .highlight-mode {
+            background: rgba(255, 0, 0, 0.1);
+        }
+
+        .highlighted-text {
+            background: rgba(255, 0, 0, 0.3);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .highlight-circle {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 0, 0, 0.7);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+
+        .share-options {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .share-options.active {
+            display: block;
+        }
+
+        .file-upload {
+            margin-top: 10px;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .file-upload label {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #e1e5e9;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload label:hover {
+            background: #d1d5d9;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4facfe;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .inline-form {
+                flex-direction: column;
+            }
+
+            .inline-form .form-group {
+                margin-bottom: 15px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .btn {
+                width: 100%;
+                padding: 15px 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💬 Chat Share</h1>
+            <p>Teile deine Konversationen im authentischen Chat-Look</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Chat Creation Form -->
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="chatTitle">Chat Titel (optional)</label>
+                    <input type="text" id="chatTitle" placeholder="z.B. Gespräch mit Anna">
+                </div>
+
+                <!-- Person Manager -->
+                <div class="person-manager">
+                    <label>Gesprächspartner verwalten</label>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="showNamesToggle" onchange="toggleShowNames()">
+                            Namen in Chat-Bubbles anzeigen
+                        </label>
+                    </div>
+                    <div class="person-list" id="personList">
+                        <div class="person-tag editable" data-person="you">
+                            <span>Du (you)</span>
+                            <button onclick="editPerson('you')" style="background:none;border:none;cursor:pointer;">✏️</button>
+                        </div>
+                        <div class="person-tag editable" data-person="them">
+                            <span>Them</span>
+                            <button onclick="editPerson('them')" style="background:none;border:none;cursor:pointer;">✏️</button>
+                        </div>
+                    </div>
+                    <div class="inline-form">
+                        <div class="form-group">
+                            <input type="text" id="newPersonName" placeholder="Neue Person hinzufügen">
+                        </div>
+                        <button class="btn btn-secondary" onclick="addPerson()">Hinzufügen</button>
+                    </div>
+                </div>
+
+                <!-- Message Input -->
+                <div class="inline-form">
+                    <div class="form-group">
+                        <label for="messageText">Nachricht</label>
+                        <textarea id="messageText" placeholder="Schreibe eine Nachricht..."></textarea>
+                        <div class="file-upload">
+                            <label for="messageImage">📎 Bild anhängen</label>
+                            <input type="file" id="messageImage" accept="image/*">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="messageSender">Von</label>
+                        <select id="messageSender">
+                            <option value="you">Du (you)</option>
+                            <option value="them">Them</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="messageTime">Zeit (optional)</label>
+                        <input type="time" id="messageTime">
+                    </div>
+                    <div class="form-group">
+                        <label for="messageDate">Datum (optional)</label>
+                        <input type="date" id="messageDate">
+                    </div>
+                </div>
+                <button class="btn" onclick="addMessage()" id="postBtn">Post</button>
+            </div>
+
+            <!-- Chat Preview -->
+            <div class="chat-preview" id="chatPreview">
+                <div class="chat-title" id="previewTitle">Chat Vorschau</div>
+                <div id="messagesContainer"></div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button class="btn btn-secondary" onclick="addNewChat()">Add Chat</button>
+                <button class="btn btn-danger" onclick="toggleHighlightMode()" id="highlightBtn">Add Highlights</button>
+                <button class="btn" onclick="toggleShareOptions()">Spill the Tea ☕</button>
+            </div>
+
+            <!-- Share Options -->
+            <div class="share-options" id="shareOptions">
+                <h3>Sharing Optionen</h3>
+                <div class="form-group">
+                    <label for="shareExpiry">Verfallszeit</label>
+                    <select id="shareExpiry">
+                        <option value="never">Niemals</option>
+                        <option value="1hour">1 Stunde</option>
+                        <option value="1day">1 Tag</option>
+                        <option value="1week">1 Woche</option>
+                        <option value="1month">1 Monat</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="shareViews">Max. Aufrufe</label>
+                    <select id="shareViews">
+                        <option value="unlimited">Unbegrenzt</option>
+                        <option value="1">1 Aufruf</option>
+                        <option value="5">5 Aufrufe</option>
+                        <option value="10">10 Aufrufe</option>
+                        <option value="50">50 Aufrufe</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="sharePassword">Passwort (optional)</label>
+                    <input type="password" id="sharePassword" placeholder="Passwort für den Link">
+                </div>
+                <button class="btn" onclick="shareChat()" id="shareBtn">Link erstellen 🔗</button>
+                <div id="shareResult" style="margin-top: 15px; padding: 10px; background: #e8f5e8; border-radius: 8px; display: none;">
+                    <strong>Dein Link:</strong>
+                    <input type="text" id="shareLink" readonly style="margin-top: 8px; font-family: monospace;">
+                    <button onclick="copyToClipboard()" style="margin-top: 8px;" class="btn btn-secondary">Kopieren</button>
+                </div>
+            </div>
+
+            <!-- Alerts -->
+            <div id="alerts"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let chats = [{ title: '', messages: [] }];
+        let currentChatIndex = 0;
+        let persons = { you: 'Du', them: 'Them' };
+        let highlightMode = false;
+        let highlights = [];
+        let showNames = false;
+
+        // Utility functions
+        function showAlert(message, type = 'error') {
+            const alertsContainer = document.getElementById('alerts');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alertsContainer.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        function setLoading(elementId, loading) {
+            const element = document.getElementById(elementId);
+            if (loading) {
+                element.disabled = true;
+                element.innerHTML = '<span class="loading"></span> Loading...';
+            } else {
+                element.disabled = false;
+                element.innerHTML = element.id === 'shareBtn' ? 'Link erstellen 🔗' : 'Post';
+            }
+        }
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Upload failed');
+                }
+
+                const result = await response.json();
+                return result.url;
+            } catch (error) {
+                console.error('Upload error:', error);
+                throw error;
+            }
+        }
+
+        function updatePersonSelect() {
+            const select = document.getElementById('messageSender');
+            select.innerHTML = '';
+            
+            Object.entries(persons).forEach(([key, name]) => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = key === 'you' ? `${name} (you)` : name;
+                select.appendChild(option);
+            });
+        }
+
+        function addPerson() {
+            const input = document.getElementById('newPersonName');
+            const name = input.value.trim();
+            
+            if (name) {
+                const key = name.toLowerCase().replace(/\s+/g, '');
+                persons[key] = name;
+                input.value = '';
+                updatePersonList();
+                updatePersonSelect();
+            }
+        }
+
+        function editPerson(key) {
+            const newName = prompt('Neuer Name:', persons[key]);
+            if (newName && newName.trim()) {
+                persons[key] = newName.trim();
+                updatePersonList();
+                updatePersonSelect();
+            }
+        }
+
+        function toggleShowNames() {
+            showNames = document.getElementById('showNamesToggle').checked;
+            updatePreview();
+        }
+
+        function updatePersonList() {
+            const container = document.getElementById('personList');
+            container.innerHTML = '';
+            
+            Object.entries(persons).forEach(([key, name]) => {
+                const tag = document.createElement('div');
+                tag.className = 'person-tag editable';
+                tag.innerHTML = `
+                    <span>${key === 'you' ? `${name} (you)` : name}</span>
+                    <button onclick="editPerson('${key}')" style="background:none;border:none;cursor:pointer;">✏️</button>
+                `;
+                container.appendChild(tag);
+            });
+        }
+
+        async function addMessage() {
+            const text = document.getElementById('messageText').value.trim();
+            const sender = document.getElementById('messageSender').value;
+            const time = document.getElementById('messageTime').value;
+            const date = document.getElementById('messageDate').value;
+            const imageInput = document.getElementById('messageImage');
+            
+            if (!text && !imageInput.files[0]) return;
+            
+            setLoading('postBtn', true);
+            
+            try {
+                const message = {
+                    text,
+                    sender,
+                    time,
+                    date,
+                    image: null
+                };
+                
+                // Handle image upload
+                if (imageInput.files[0]) {
+                    try {
+                        const imageUrl = await uploadFile(imageInput.files[0]);
+                        message.image = imageUrl;
+                    } catch (error) {
+                        showAlert('Fehler beim Hochladen des Bildes');
+                        setLoading('postBtn', false);
+                        return;
+                    }
+                }
+                
+                chats[currentChatIndex].messages.push(message);
+                updatePreview();
+                
+                // Clear form (except title)
+                document.getElementById('messageText').value = '';
+                document.getElementById('messageTime').value = '';
+                document.getElementById('messageDate').value = '';
+                imageInput.value = '';
+                
+            } catch (error) {
+                showAlert('Fehler beim Hinzufügen der Nachricht');
+                console.error('Add message error:', error);
+            } finally {
+                setLoading('postBtn', false);
+            }
+        }
+
+        function updatePreview() {
+            const container = document.getElementById('messagesContainer');
+            const titleElement = document.getElementById('previewTitle');
+            
+            container.innerHTML = '';
+            
+            chats.forEach((chat, chatIndex) => {
+                if (chatIndex > 0) {
+                    const separator = document.createElement('div');
+                    separator.style.cssText = 'margin: 30px 0; padding: 20px 0; border-top: 2px solid #e1e5e9;';
+                    container.appendChild(separator);
+                }
+                
+                if (chat.title) {
+                    const title = document.createElement('div');
+                    title.className = 'chat-title';
+                    title.textContent = chat.title;
+                    container.appendChild(title);
+                }
+                
+                chat.messages.forEach(message => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${message.sender === 'you' ? 'right' : 'left'}`;
+                    
+                    // Add sender name if enabled
+                    if (showNames) {
+                        const senderDiv = document.createElement('div');
+                        senderDiv.className = 'message-sender';
+                        senderDiv.textContent = persons[message.sender] || message.sender;
+                        messageDiv.appendChild(senderDiv);
+                    }
+                    
+                    const bubble = document.createElement('div');
+                    bubble.className = 'message-bubble';
+                    
+                    if (message.text) {
+                        const textDiv = document.createElement('div');
+                        textDiv.textContent = message.text;
+                        bubble.appendChild(textDiv);
+                    }
+                    
+                    if (message.image) {
+                        const img = document.createElement('img');
+                        img.src = message.image;
+                        img.className = 'message-image';
+                        bubble.appendChild(img);
+                    }
+                    
+                    if (message.time || message.date) {
+                        const info = document.createElement('div');
+                        info.className = 'message-info';
+                        const timeStr = message.time ? message.time : '';
+                        const dateStr = message.date ? message.date : '';
+                        info.textContent = `${dateStr} ${timeStr}`.trim();
+                        bubble.appendChild(info);
+                    }
+                    
+                    messageDiv.appendChild(bubble);
+                    container.appendChild(messageDiv);
+                });
+            });
+            
+            // Update title
+            const currentTitle = chats[currentChatIndex].title || 'Chat Vorschau';
+            titleElement.textContent = currentTitle;
+        }
+
+        function addNewChat() {
+            const title = document.getElementById('chatTitle').value.trim();
+            chats.push({ title, messages: [] });
+            currentChatIndex = chats.length - 1;
+            document.getElementById('chatTitle').value = title;
+            updatePreview();
+        }
+
+        function toggleHighlightMode() {
+            highlightMode = !highlightMode;
+            const btn = document.getElementById('highlightBtn');
+            const preview = document.getElementById('chatPreview');
+            
+            if (highlightMode) {
+                btn.textContent = 'Highlights beenden';
+                btn.style.background = 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)';
+                preview.classList.add('highlight-mode');
+                enableTextSelection();
+            } else {
+                btn.textContent = 'Add Highlights';
+                btn.style.background = '';
+                preview.classList.remove('highlight-mode');
+                disableTextSelection();
+            }
+        }
+
+        function enableTextSelection() {
+            const preview = document.getElementById('chatPreview');
+            preview.addEventListener('mouseup', handleTextSelection);
+            preview.addEventListener('click', handleCircleAdd);
+        }
+
+        function disableTextSelection() {
+            const preview = document.getElementById('chatPreview');
+            preview.removeEventListener('mouseup', handleTextSelection);
+            preview.removeEventListener('click', handleCircleAdd);
+        }
+
+        function handleTextSelection() {
+            const selection = window.getSelection();
+            if (selection.toString().trim()) {
+                const range = selection.getRangeAt(0);
+                const span = document.createElement('span');
+                span.className = 'highlighted-text';
+                try {
+                    range.surroundContents(span);
+                    selection.removeAllRanges();
+                } catch (e) {
+                    console.log('Complex selection detected');
+                }
+            }
+        }
+
+        function handleCircleAdd(e) {
+            if (e.target.closest('.message-bubble')) return;
+            
+            const circle = document.createElement('div');
+            circle.className = 'highlight-circle';
+            circle.style.left = (e.offsetX - 10) + 'px';
+            circle.style.top = (e.offsetY - 10) + 'px';
+            e.currentTarget.appendChild(circle);
+        }
+
+        function toggleShareOptions() {
+            const options = document.getElementById('shareOptions');
+            options.classList.toggle('active');
+        }
+
+        async function shareChat() {
+            const expiry = document.getElementById('shareExpiry').value;
+            const views = document.getElementById('shareViews').value;
+            const password = document.getElementById('sharePassword').value;
+            
+            if (chats.every(chat => chat.messages.length === 0)) {
+                showAlert('Bitte füge mindestens eine Nachricht hinzu');
+                return;
+            }
+            
+            setLoading('shareBtn', true);
+            
+            try {
+                const chatData = {
+                    chats,
+                    persons,
+                    highlights,
+                    expiry,
+                    views,
+                    password: password || null
+                };
+                
+                const response = await fetch('/api/share', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(chatData)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Sharing failed');
+                }
+                
+                const result = await response.json();
+                const fullUrl = `${window.location.origin}${result.url}`;
+                
+                document.getElementById('shareLink').value = fullUrl;
+                document.getElementById('shareResult').style.display = 'block';
+                showAlert('Link erfolgreich erstellt!', 'success');
+                
+            } catch (error) {
+                showAlert('Fehler beim Erstellen des Links: ' + error.message);
+                console.error('Share error:', error);
+            } finally {
+                setLoading('shareBtn', false);
+            }
+        }
+
+        function copyToClipboard() {
+            const input = document.getElementById('shareLink');
+            input.select();
+            document.execCommand('copy');
+            
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = 'Kopiert! ✓';
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 2000);
+        }
+
+        // Initialize
+        updatePersonList();
+        updatePersonSelect();
+        updatePreview();
+    </script>
+</body>
+</html>
