@@ -1075,7 +1075,9 @@
                 updatePreview();
                 
                 // Show edit notice above action buttons
-                document.getElementById('editNotice').style.display = 'block';
+                if (!isOngoingMode) {
+                    document.getElementById('editNotice').style.display = 'block';
+                }
                 
                 // Handle ongoing mode
                 if (isOngoingMode) {
