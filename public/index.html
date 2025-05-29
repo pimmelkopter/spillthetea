@@ -63,25 +63,6 @@
             background: var(--header-mono);
         }
 
-        .new-tea-button {
-            position: absolute;
-            bottom: 15px;
-            left: 20px;
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: block;
-        }
-
-        .new-tea-button:hover {
-            background: rgba(255,255,255,0.3);
-        }
-
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
@@ -156,7 +137,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 8px;
         }
 
         .control-btn {
@@ -564,11 +545,25 @@
             align-items: center;
             gap: 8px;
             margin-top: 15px;
+            margin-bottom: 10px;
         }
 
         .tooltip {
             position: relative;
             cursor: help;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            background: #999;
+            color: white;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 4px;
+            vertical-align: super;
+            line-height: 1;
         }
 
         .tooltip:hover::after {
@@ -584,6 +579,7 @@
             font-size: 0.8rem;
             white-space: nowrap;
             z-index: 1000;
+            font-weight: normal;
         }
 
         .loading {
@@ -697,13 +693,6 @@
                 margin-top: 15px;
             }
 
-            .new-tea-button {
-                position: static;
-                margin-bottom: 15px;
-                margin-top: 10px;
-                display: block;
-            }
-
             .main-content > * {
                 padding: 20px;
             }
@@ -754,7 +743,6 @@
 <body>
     <div class="container">
         <div class="header">
-            <button class="new-tea-button" id="newTeaBtn" onclick="startNewTea()">🆕 New Tea</button>
             <div class="theme-switch">
                 <span>Gradient</span>
                 <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
@@ -893,7 +881,7 @@
                     <div class="ongoing-checkbox">
                         <input type="checkbox" id="ongoingCheckbox">
                         <label for="ongoingCheckbox">Der Tea geht vielleicht weiter?</label>
-                        <span class="tooltip" data-tooltip="Wenn du nach dem teilen weiter nachrichten hinzufügen willst">❓</span>
+                        <span class="tooltip" data-tooltip="Wenn du nach dem teilen weiter nachrichten hinzufügen willst">?</span>
                     </div>
                 
                 <button class="btn" onclick="shareChat()" id="shareBtn">Link erstellen 🔗</button>

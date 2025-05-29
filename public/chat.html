@@ -92,7 +92,7 @@
 
         .top-controls {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
             margin-bottom: 20px;
         }
@@ -588,8 +588,7 @@
             }
 
             .top-controls {
-                flex-direction: column;
-                gap: 10px;
+                justify-content: center;
             }
 
             .modal-content {
@@ -608,14 +607,13 @@
     <div class="container">
         <div class="header">
             <h1 onclick="window.location.href='/'">☕ Spill The Tea</h1>
-            <p>Geteilter Chat - fresh and hot</p>
+            <p>spilled tea - fresh and hot</p>
         </div>
 
         <div class="main-content">
             <!-- Top Controls -->
             <div class="top-controls" id="topControls" style="display: none;">
-                <button class="control-btn" onclick="window.location.href='/'">🆕 New Tea</button>
-                <button class="control-btn" onclick="showFAQ()">❓ FAQ</button>
+                <button class="control-btn" onclick="showFAQ()">FAQ</button>
             </div>
 
             <div id="loading" class="loading">
@@ -645,7 +643,7 @@
 
             <div class="bottom-section" id="bottomSection" style="display: none;">
                 <button class="subscribe-button" id="subscribeBtn" onclick="subscribeToNotifications()">
-                    ☕ Tea abonnieren
+                    ☕ diesen tea abonnieren
                 </button>
                 <a href="/" class="back-button">want to spill some tea? ☕</a>
             </div>
@@ -1031,7 +1029,7 @@
                 const vapidData = await vapidResponse.json();
                 
                 if (!vapidData.publicKey) {
-                    alert('Push-Nachrichten sind auf diesem Server nicht konfiguriert');
+                    alert('Push-Nachrichten sind auf diesem Server noch nicht konfiguriert');
                     return;
                 }
 
