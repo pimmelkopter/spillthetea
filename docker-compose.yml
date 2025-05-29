@@ -6,6 +6,7 @@ services:
       - TZ=Europe/Berlin
       - NODE_ENV=production
       - PORT=3000
+      - DATABASE_PATH=/app/data/chatshare.db
       - VIRTUAL_HOST=spillthetea.raphaelfunck.de
       - VIRTUAL_PORT=3000
       - LETSENCRYPT_HOST=spillthetea.raphaelfunck.de
