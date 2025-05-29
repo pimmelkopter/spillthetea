@@ -9,6 +9,8 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const path = require('path');
 const fs = require('fs');
+const sanitizeHtml = require('sanitize-html');
+const webpush = require('web-push');
 require('dotenv').config();
 
 const app = express();
@@ -16,6 +18,15 @@ const PORT = process.env.PORT || 3000;
 
 // Trust proxy for nginx-proxy
 app.set('trust proxy', true);
+
+// Configure web-push with VAPID keys
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+        'mailto:' + (process.env.VAPID_EMAIL || 'admin@spillthetea.app'),
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+    );
+}
 
 // Animal names array (same as MicroBin)
 const ANIMAL_NAMES = [
@@ -27,6 +38,19 @@ const ANIMAL_NAMES = [
     'moth', 'newt', 'orca', 'pika', 'pony', 'puma', 'seal', 'slug', 'swan',
     'toad', 'trout', 'wasp', 'wolf', 'worm', 'wren'
 ];
+
+// Sanitization options
+const sanitizeOptions = {
+    allowedTags: [],
+    allowedAttributes: {},
+    disallowedTagsMode: 'discard'
+};
+
+// Sanitize function
+function sanitizeInput(input) {
+    if (typeof input !== 'string') return input;
+    return sanitizeHtml(input, sanitizeOptions);
+}
 
 // Middleware
 app.use(helmet({
@@ -98,7 +122,9 @@ db.serialize(() => {
         current_views INTEGER DEFAULT 0,
         is_active BOOLEAN DEFAULT 1,
         is_edit_link BOOLEAN DEFAULT 0,
-        theme TEXT DEFAULT 'gradient'
+        is_ongoing BOOLEAN DEFAULT 0,
+        theme TEXT DEFAULT 'gradient',
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
     // Files table
@@ -113,10 +139,34 @@ db.serialize(() => {
         FOREIGN KEY (chat_id) REFERENCES chats (id)
     )`);
 
+    // Comments table
+    db.run(`CREATE TABLE IF NOT EXISTS comments (
+        id TEXT PRIMARY KEY,
+        chat_url TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (chat_url) REFERENCES chats (animal_url)
+    )`);
+
+    // Push subscriptions table
+    db.run(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id TEXT PRIMARY KEY,
+        chat_url TEXT NOT NULL,
+        endpoint TEXT NOT NULL,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (chat_url) REFERENCES chats (animal_url)
+    )`);
+
     // Index for faster lookups
     db.run(`CREATE INDEX IF NOT EXISTS idx_animal_url ON chats (animal_url)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_expires_at ON chats (expires_at)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_is_edit_link ON chats (is_edit_link)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_comments_chat ON comments (chat_url)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_comments_message ON comments (message_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_subscriptions_chat ON push_subscriptions (chat_url)`);
 });
 
 // Utility functions
@@ -137,8 +187,13 @@ function generateRandomString(length) {
     return result;
 }
 
-function calculateExpiryDate(expiry) {
+function calculateExpiryDate(expiry, isOngoing = false) {
     if (expiry === 'never') return null;
+    if (isOngoing && expiry === '2days') {
+        // Ongoing edit links get 3 months instead of 2 days
+        const now = new Date();
+        return new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    }
     
     const now = new Date();
     switch (expiry) {
@@ -183,6 +238,74 @@ function isViewLimitExceeded(chat) {
     return chat.current_views >= chat.max_views;
 }
 
+// Add message IDs to existing chats
+function ensureMessageIds(chatData) {
+    if (!chatData.chats) return chatData;
+    
+    chatData.chats.forEach(chat => {
+        if (chat.messages) {
+            chat.messages.forEach(message => {
+                if (!message.id) {
+                    message.id = uuidv4();
+                }
+            });
+        }
+    });
+    
+    return chatData;
+}
+
+// Send push notification
+async function sendPushNotification(chatUrl, message, type = 'comment') {
+    if (!process.env.VAPID_PUBLIC_KEY) return;
+
+    try {
+        const subscriptions = await new Promise((resolve, reject) => {
+            db.all(
+                'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE chat_url = ?',
+                [chatUrl],
+                (err, rows) => {
+                    if (err) reject(err);
+                    else resolve(rows);
+                }
+            );
+        });
+
+        const payload = JSON.stringify({
+            title: 'New Tea ☕',
+            body: type === 'comment' ? 
+                'Es gibt einen neuen Kommentar in deinem Chat' : 
+                'Es gibt neue Nachrichten in deinem abonnierten Chat',
+            url: `/chat/${chatUrl}`,
+            icon: '/favicon.ico'
+        });
+
+        const pushPromises = subscriptions.map(sub => {
+            const pushSubscription = {
+                endpoint: sub.endpoint,
+                keys: {
+                    p256dh: sub.p256dh,
+                    auth: sub.auth
+                }
+            };
+            
+            return webpush.sendNotification(pushSubscription, payload)
+                .catch(err => {
+                    if (err.statusCode === 410) {
+                        // Subscription expired, remove it
+                        db.run('DELETE FROM push_subscriptions WHERE endpoint = ?', [sub.endpoint]);
+                    }
+                    console.error('Push notification error:', err);
+                });
+        });
+
+        await Promise.all(pushPromises);
+        console.log(`Sent ${subscriptions.length} push notifications for ${chatUrl}`);
+    } catch (error) {
+        console.error('Error sending push notifications:', error);
+    }
+}
+
 // Cleanup expired chats (run every hour)
 setInterval(() => {
     db.run(`UPDATE chats SET is_active = 0 WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`);
@@ -190,6 +313,102 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 // API Routes
+
+// Get VAPID public key
+app.get('/api/vapid-public-key', (req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
+});
+
+// Subscribe to push notifications
+app.post('/api/subscribe/:chatUrl', (req, res) => {
+    try {
+        const { chatUrl } = req.params;
+        const { endpoint, keys } = req.body;
+
+        if (!endpoint || !keys || !keys.p256dh || !keys.auth) {
+            return res.status(400).json({ error: 'Invalid subscription data' });
+        }
+
+        const subscriptionId = uuidv4();
+        
+        db.run(
+            `INSERT OR REPLACE INTO push_subscriptions (id, chat_url, endpoint, p256dh, auth) 
+             VALUES (?, ?, ?, ?, ?)`,
+            [subscriptionId, chatUrl, endpoint, keys.p256dh, keys.auth],
+            function(err) {
+                if (err) {
+                    console.error('Subscription error:', err);
+                    return res.status(500).json({ error: 'Failed to save subscription' });
+                }
+
+                res.json({ success: true, id: subscriptionId });
+            }
+        );
+    } catch (error) {
+        console.error('Subscribe error:', error);
+        res.status(500).json({ error: 'Failed to subscribe' });
+    }
+});
+
+// Get comments for a message
+app.get('/api/comments/:chatUrl/:messageId', (req, res) => {
+    try {
+        const { chatUrl, messageId } = req.params;
+
+        db.all(
+            `SELECT id, text, created_at FROM comments 
+             WHERE chat_url = ? AND message_id = ? 
+             ORDER BY created_at ASC`,
+            [chatUrl, messageId],
+            (err, rows) => {
+                if (err) {
+                    console.error('Get comments error:', err);
+                    return res.status(500).json({ error: 'Failed to get comments' });
+                }
+
+                res.json({ comments: rows || [] });
+            }
+        );
+    } catch (error) {
+        console.error('Get comments error:', error);
+        res.status(500).json({ error: 'Failed to get comments' });
+    }
+});
+
+// Add comment to a message
+app.post('/api/comments/:chatUrl/:messageId', (req, res) => {
+    try {
+        const { chatUrl, messageId } = req.params;
+        const { text } = req.body;
+
+        if (!text || typeof text !== 'string' || !text.trim()) {
+            return res.status(400).json({ error: 'Comment text is required' });
+        }
+
+        const cleanText = sanitizeInput(text.trim());
+        const commentId = uuidv4();
+
+        db.run(
+            `INSERT INTO comments (id, chat_url, message_id, text) 
+             VALUES (?, ?, ?, ?)`,
+            [commentId, chatUrl, messageId, cleanText],
+            async function(err) {
+                if (err) {
+                    console.error('Add comment error:', err);
+                    return res.status(500).json({ error: 'Failed to add comment' });
+                }
+
+                // Send push notification
+                await sendPushNotification(chatUrl, cleanText, 'comment');
+
+                res.json({ success: true, id: commentId });
+            }
+        );
+    } catch (error) {
+        console.error('Add comment error:', error);
+        res.status(500).json({ error: 'Failed to add comment' });
+    }
+});
 
 // Upload file
 app.post('/api/upload', upload.single('image'), (req, res) => {
@@ -220,11 +439,31 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 // Create/Share chat
 app.post('/api/share', async (req, res) => {
     try {
-        const { chats, expiry, views, password, theme, isEditLink, customUrl } = req.body;
+        let { chats, expiry, views, password, theme, isEditLink, customUrl, isOngoing } = req.body;
 
         if (!chats || !Array.isArray(chats)) {
             return res.status(400).json({ error: 'Invalid chat data' });
         }
+
+        // Sanitize all text inputs
+        chats = chats.map(chat => ({
+            ...chat,
+            title: sanitizeInput(chat.title || ''),
+            persons: Object.fromEntries(
+                Object.entries(chat.persons || {}).map(([key, value]) => [
+                    sanitizeInput(key),
+                    sanitizeInput(value)
+                ])
+            ),
+            messages: (chat.messages || []).map(message => ({
+                ...message,
+                id: message.id || uuidv4(),
+                text: sanitizeInput(message.text || ''),
+                sender: sanitizeInput(message.sender || ''),
+                time: sanitizeInput(message.time || ''),
+                date: sanitizeInput(message.date || '')
+            }))
+        }));
 
         const id = uuidv4();
         let animalUrl;
@@ -287,14 +526,14 @@ app.post('/api/share', async (req, res) => {
             theme: theme || 'gradient'
         };
 
-        const expiresAt = calculateExpiryDate(expiry);
+        const expiresAt = calculateExpiryDate(expiry, isOngoing);
         const maxViews = parseMaxViews(views);
         const passwordHash = await hashPassword(password);
 
         db.run(
-            `INSERT INTO chats (id, animal_url, data, password_hash, expires_at, max_views, is_edit_link, theme) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, animalUrl, JSON.stringify(chatData), passwordHash, expiresAt, maxViews, isEditLink ? 1 : 0, theme || 'gradient'],
+            `INSERT INTO chats (id, animal_url, data, password_hash, expires_at, max_views, is_edit_link, is_ongoing, theme) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, animalUrl, JSON.stringify(chatData), passwordHash, expiresAt, maxViews, isEditLink ? 1 : 0, isOngoing ? 1 : 0, theme || 'gradient'],
             function(err) {
                 if (err) {
                     console.error('Database error:', err);
@@ -304,7 +543,7 @@ app.post('/api/share', async (req, res) => {
                     return res.status(500).json({ error: 'Failed to save chat' });
                 }
 
-                console.log(`Chat saved successfully with URL: ${animalUrl} (Edit: ${isEditLink ? 'Yes' : 'No'})`);
+                console.log(`Chat saved successfully with URL: ${animalUrl} (Edit: ${isEditLink ? 'Yes' : 'No'}, Ongoing: ${isOngoing ? 'Yes' : 'No'})`);
                 const urlPath = isEditLink ? `/edit/${animalUrl}` : `/chat/${animalUrl}`;
                 res.json({
                     success: true,
@@ -316,6 +555,59 @@ app.post('/api/share', async (req, res) => {
     } catch (error) {
         console.error('Share error:', error);
         res.status(500).json({ error: 'Failed to share chat' });
+    }
+});
+
+// Update ongoing chat
+app.put('/api/update/:animalUrl', async (req, res) => {
+    try {
+        const { animalUrl } = req.params;
+        const { expiry, views, password } = req.body;
+
+        // Verify this is an ongoing edit link
+        const chat = await new Promise((resolve, reject) => {
+            db.get(
+                'SELECT * FROM chats WHERE animal_url = ? AND is_edit_link = 1 AND is_ongoing = 1 AND is_active = 1',
+                [animalUrl],
+                (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                }
+            );
+        });
+
+        if (!chat) {
+            return res.status(404).json({ error: 'Ongoing chat not found' });
+        }
+
+        // Verify password
+        const passwordValid = await verifyPassword(password, chat.password_hash);
+        if (!passwordValid) {
+            return res.status(401).json({ error: 'Invalid password' });
+        }
+
+        const expiresAt = calculateExpiryDate(expiry);
+        const maxViews = parseMaxViews(views);
+
+        db.run(
+            `UPDATE chats SET expires_at = ?, max_views = ?, current_views = 0, last_updated = CURRENT_TIMESTAMP 
+             WHERE animal_url = ?`,
+            [expiresAt, maxViews, animalUrl],
+            async function(err) {
+                if (err) {
+                    console.error('Update chat error:', err);
+                    return res.status(500).json({ error: 'Failed to update chat' });
+                }
+
+                // Send push notification about update
+                await sendPushNotification(animalUrl, 'Chat updated', 'update');
+
+                res.json({ success: true });
+            }
+        );
+    } catch (error) {
+        console.error('Update chat error:', error);
+        res.status(500).json({ error: 'Failed to update chat' });
     }
 });
 
@@ -361,14 +653,17 @@ app.get('/api/chat/:animalUrl', async (req, res) => {
                 db.run(`UPDATE chats SET current_views = current_views + 1 WHERE id = ?`, [chat.id]);
                 }
 
-                const chatData = JSON.parse(chat.data);
+                let chatData = JSON.parse(chat.data);
+                chatData = ensureMessageIds(chatData);
+
                 res.json({
                     success: true,
                     data: chatData,
                     views: chat.current_views + (chat.is_edit_link ? 0 : 1),
                     maxViews: chat.max_views,
                     expiresAt: chat.expires_at,
-                    isEditMode: chat.is_edit_link
+                    isEditMode: chat.is_edit_link,
+                    isOngoing: !!chat.is_ongoing
                 });
             }
         );
@@ -409,13 +704,19 @@ app.get('/api/edit/:animalUrl', async (req, res) => {
                     return res.status(401).json({ error: 'Invalid password', requiresPassword: true });
                 }
 
-                const chatData = JSON.parse(chat.data);
-                console.log(`Edit chat accessed: ${animalUrl}`);
+                let chatData = JSON.parse(chat.data);
+                chatData = ensureMessageIds(chatData);
+                
+                console.log(`Edit chat accessed: ${animalUrl} (Ongoing: ${chat.is_ongoing ? 'Yes' : 'No'})`);
                 
                 res.json({
                     success: true,
                     data: chatData,
-                    isEditMode: true
+                    isEditMode: true,
+                    isOngoing: !!chat.is_ongoing,
+                    animalUrl: animalUrl,
+                    maxViews: chat.max_views,
+                    expiresAt: chat.expires_at
                 });
             }
         );
@@ -490,6 +791,11 @@ app.listen(PORT, () => {
     console.log(`🚀 Spill The Tea server running on port ${PORT}`);
     console.log(`📝 Main app: http://localhost:${PORT}`);
     console.log(`❤️  Health check: http://localhost:${PORT}/health`);
+    if (process.env.VAPID_PUBLIC_KEY) {
+        console.log(`🔔 Push notifications enabled`);
+    } else {
+        console.log(`⚠️  Push notifications disabled (no VAPID keys)`);
+    }
 });
 
 module.exports = app;
