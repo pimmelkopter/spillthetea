@@ -292,7 +292,9 @@
         }
 
         .messages-container {
-            width: 100%;
+            width: calc(100% + 60px);
+            margin-left: -30px;
+            margin-right: -30px;
             padding: 20px 30px;
         }
 
@@ -552,6 +554,9 @@
             }
 
             .messages-container {
+                width: calc(100% + 40px);
+                margin-left: -20px;
+                margin-right: -20px;
                 padding: 20px 15px;
             }
 
@@ -668,6 +673,11 @@
                 <div id="messagesContainer" class="messages-container"></div>
             </div>
 
+            <!-- Edit Mode Notice -->
+            <div id="editNotice" class="edit-notice" style="display: none;">
+                Ein bearbeiteter Chat muss immer mit einem neuen Link geteilt werden
+            </div>
+
             <!-- Action Buttons -->
             <div class="action-buttons">
                 <button class="btn btn-secondary" onclick="scrollToMessageForm()">Add Message</button>
@@ -678,10 +688,6 @@
 
             <!-- Share Options -->
             <div class="share-options" id="shareOptions">
-                <div id="editNotice" class="edit-notice" style="display: none;">
-                    Ein bearbeiteter Chat wird immer mit einem neuen Link geteilt.
-                </div>
-                
                 <h3>Sharing Optionen</h3>
                 <div class="form-group">
                     <label for="shareExpiry">Verfallszeit</label>
@@ -707,6 +713,7 @@
                     <label for="sharePassword">Passwort (optional)</label>
                     <input type="password" id="sharePassword" placeholder="Passwort für den Link">
                 </div>
+                
                 <button class="btn" onclick="shareChat()" id="shareBtn">Link erstellen 🔗</button>
                 <div id="shareResult" style="margin-top: 15px; padding: 10px; background: #e8f5e8; border-radius: 8px; display: none;">
                     <strong>Dein Link:</strong>
@@ -816,7 +823,7 @@
                 updateCurrentChatUI();
                 updatePreview();
                 
-                // Show edit notice
+                // Show edit notice above action buttons
                 document.getElementById('editNotice').style.display = 'block';
                 
                 showAlert('Chat erfolgreich geladen! Vergiss nicht, nach Änderungen einen neuen Link zu erstellen.', 'success');
@@ -941,18 +948,18 @@
             const select = document.getElementById('messageSender');
             select.innerHTML = '';
             
-            // Add comment option
-            const commentOption = document.createElement('option');
-            commentOption.value = 'comment';
-            commentOption.textContent = 'Comment';
-            select.appendChild(commentOption);
-            
             Object.entries(getCurrentPersons()).forEach(([key, name]) => {
                 const option = document.createElement('option');
                 option.value = key;
                 option.textContent = key === 'you' ? `${name} (you)` : name;
                 select.appendChild(option);
             });
+            
+            // Add comment option at the bottom
+            const commentOption = document.createElement('option');
+            commentOption.value = 'comment';
+            commentOption.textContent = 'Comment';
+            select.appendChild(commentOption);
         }
 
         function addPerson() {
@@ -1171,15 +1178,18 @@
         function addNewChat() {
             saveCurrentChatState();
             
+            const newChatNumber = chats.length + 1;
+            const newChatTitle = `Chat ${newChatNumber}`;
+            
             chats.push({ 
-                title: '', 
+                title: newChatTitle, 
                 messages: [], 
                 persons: { ...getCurrentPersons() }, // Copy current persons
                 showNames: false
             });
             currentChatIndex = chats.length - 1;
             
-            document.getElementById('chatTitle').value = '';
+            document.getElementById('chatTitle').value = newChatTitle;
             updateCurrentChatUI();
             updatePreview();
             saveToLocalStorage();
@@ -1343,7 +1353,10 @@
         updatePreview();
             
             // Auto-save on input changes
-            document.getElementById('chatTitle').addEventListener('input', saveToLocalStorage);
+            document.getElementById('chatTitle').addEventListener('input', () => {
+                updatePreview();
+                saveToLocalStorage();
+            });
         });
 
         // Auto-save before page unload
