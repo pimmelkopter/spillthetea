@@ -1025,10 +1025,16 @@
         // Check if this is edit mode
         function checkEditMode() {
             const path = window.location.pathname;
-            const editMatch = path.match(/\/edit\/([a-z0-9]+)/);
+            console.log('🔍 Checking path:', path);
+            const editMatch = path.match(/\/edit\/([a-z0-9]{8,})/i);
             if (editMatch) {
+                console.log('✅ Edit mode detected for URL:', editMatch[1]);
                 isEditMode = true;
                 loadEditChat(editMatch[1]);
+                return true;
+            } else {
+                console.log('🔍 Not in edit mode');
+                return false;
             }
         }
 
@@ -1737,6 +1743,33 @@
             saveCurrentChatState();
             saveToLocalStorage();
             }
+        });
+
+        // In index.html - window.addEventListener erweitern:
+        window.addEventListener('load', () => {
+            console.log('🚀 Page loaded, current path:', window.location.pathname);
+
+            // Debug: Testen Sie die Regex direkt
+            const testPath = window.location.pathname;
+            const testMatch = testPath.match(/\/edit\/([a-z0-9]{8,})/i);
+            console.log('🧪 Regex test result:', testMatch);
+            
+            const editModeDetected = checkEditMode();
+            console.log('🎯 Edit mode result:', editModeDetected);
+            
+            if (!isEditMode) {
+                console.log('📂 Loading from localStorage...');
+                loadFromLocalStorage();
+            }
+            updatePersonList();
+            updatePersonSelect();
+            updatePreview();
+            
+            // Auto-save on input changes
+            document.getElementById('chatTitle').addEventListener('input', () => {
+                updatePreview();
+                saveToLocalStorage();
+            });
         });
     </script>
 </body>
