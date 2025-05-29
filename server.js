@@ -109,7 +109,7 @@ if (!fs.existsSync(dbDir)) {
 const db = new sqlite3.Database(dbPath);
 
 // Initialize database tables
-db.serialize(() => {
+db.serialize(async () => {
     // Chats table
     db.run(`CREATE TABLE IF NOT EXISTS chats (
         id TEXT PRIMARY KEY,
@@ -167,7 +167,76 @@ db.serialize(() => {
     db.run(`CREATE INDEX IF NOT EXISTS idx_comments_chat ON comments (chat_url)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_comments_message ON comments (message_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_subscriptions_chat ON push_subscriptions (chat_url)`);
+
+await initializeDatabase();
 });
+
+async function initializeDatabase() {
+    return new Promise((resolve, reject) => {
+        console.log('🔍 Scanning database on startup...');
+        
+        // 1. Cleanup expired chats immediately
+        db.run(
+            `UPDATE chats SET is_active = 0 WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`,
+            function(err) {
+                if (err) {
+                    console.error('❌ Error cleaning up expired chats:', err);
+                    return reject(err);
+                }
+                
+                if (this.changes > 0) {
+                    console.log(`🧹 Cleaned up ${this.changes} expired chats`);
+                }
+                
+                // 2. Get database statistics
+                db.all(`
+                    SELECT 
+                        COUNT(*) as total_chats,
+                        COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_chats,
+                        COUNT(CASE WHEN is_edit_link = 1 THEN 1 END) as edit_links,
+                        COUNT(CASE WHEN is_ongoing = 1 THEN 1 END) as ongoing_chats,
+                        COUNT(CASE WHEN expires_at IS NOT NULL AND expires_at > datetime('now') THEN 1 END) as expiring_chats
+                    FROM chats
+                `, (err, rows) => {
+                    if (err) {
+                        console.error('❌ Error getting database stats:', err);
+                        return reject(err);
+                    }
+                    
+                    const stats = rows[0];
+                    console.log('📊 Database Statistics:');
+                    console.log(`   Total chats: ${stats.total_chats}`);
+                    console.log(`   Active chats: ${stats.active_chats}`);
+                    console.log(`   Edit links: ${stats.edit_links}`);
+                    console.log(`   Ongoing chats: ${stats.ongoing_chats}`);
+                    console.log(`   With expiry: ${stats.expiring_chats}`);
+                    
+                    // 3. Get comment statistics
+                    db.get(`SELECT COUNT(*) as total_comments FROM comments`, (err, row) => {
+                        if (err) {
+                            console.error('❌ Error getting comment stats:', err);
+                            return reject(err);
+                        }
+                        
+                        console.log(`   Total comments: ${row.total_comments}`);
+                        
+                        // 4. Get push subscription statistics
+                        db.get(`SELECT COUNT(*) as total_subscriptions FROM push_subscriptions`, (err, row) => {
+                            if (err) {
+                                console.error('❌ Error getting subscription stats:', err);
+                                return reject(err);
+                            }
+                            
+                            console.log(`   Push subscriptions: ${row.total_subscriptions}`);
+                            console.log('✅ Database scan completed\n');
+                            resolve();
+                        });
+                    });
+                });
+            }
+        );
+    });
+}
 
 // Utility functions
 function generateAnimalUrl() {
@@ -308,8 +377,16 @@ async function sendPushNotification(chatUrl, message, type = 'comment') {
 
 // Cleanup expired chats (run every hour)
 setInterval(() => {
-    db.run(`UPDATE chats SET is_active = 0 WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`);
-    console.log('Cleaned up expired chats');
+    db.run(
+        `UPDATE chats SET is_active = 0 WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`,
+        function(err) {
+            if (err) {
+                console.error('Cleanup error:', err);
+            } else if (this.changes > 0) {
+                console.log(`🧹 Hourly cleanup: ${this.changes} chats expired`);
+            }
+        }
+    );
 }, 60 * 60 * 1000);
 
 // API Routes
