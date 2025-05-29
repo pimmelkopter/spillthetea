@@ -537,8 +537,18 @@
 
             // Apply highlights if any
             if (chatData.highlights && chatData.highlights.length > 0) {
-                // Implementation for highlights would go here
-                console.log('Highlights found:', chatData.highlights);
+                setTimeout(() => {
+                    chatData.highlights.forEach(highlight => {
+                        if (highlight.type === 'circle') {
+                            const circle = document.createElement('div');
+                            circle.className = 'highlight-circle';
+                            circle.style.left = highlight.x + 'px';
+                            circle.style.top = highlight.y + 'px';
+                            container.appendChild(circle);
+                        }
+                        // Text highlights are already in the HTML structure
+                    });
+                }, 100);
             }
         }
 

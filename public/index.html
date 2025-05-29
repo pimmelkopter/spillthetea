@@ -1134,13 +1134,25 @@
                 const range = selection.getRangeAt(0);
                 const span = document.createElement('span');
                 span.className = 'highlighted-text';
+                span.dataset.highlightId = Date.now() + Math.random();
                 span.onclick = (e) => {
                     e.stopPropagation();
+                    const highlightId = span.dataset.highlightId;
                     span.outerHTML = span.innerHTML; // Remove highlight
+                    // Remove from highlights array
+                    highlights = highlights.filter(h => h.id !== highlightId);
+                    saveToLocalStorage();
                 };
                 try {
                     range.surroundContents(span);
                     selection.removeAllRanges();
+                    // Save highlight
+                    highlights.push({
+                        id: span.dataset.highlightId,
+                        type: 'text',
+                        text: span.textContent
+                    });
+                    saveToLocalStorage();
                 } catch (e) {
                     console.log('Complex selection detected');
                 }
@@ -1152,13 +1164,27 @@
             
             const circle = document.createElement('div');
             circle.className = 'highlight-circle';
+            circle.dataset.highlightId = Date.now() + Math.random();
             circle.style.left = (e.offsetX - 10) + 'px';
             circle.style.top = (e.offsetY - 10) + 'px';
             circle.onclick = (e) => {
                 e.stopPropagation();
+                const highlightId = circle.dataset.highlightId;
                 circle.remove();
+                // Remove from highlights array
+                highlights = highlights.filter(h => h.id !== highlightId);
+                saveToLocalStorage();
             };
             e.currentTarget.appendChild(circle);
+            
+            // Save highlight
+            highlights.push({
+                id: circle.dataset.highlightId,
+                type: 'circle',
+                x: e.offsetX - 10,
+                y: e.offsetY - 10
+            });
+            saveToLocalStorage();
         }
 
         function toggleShareOptions() {
