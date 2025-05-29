@@ -171,7 +171,7 @@ db.serialize(async () => {
 await initializeDatabase();
 });
 
-// Database migration and initialization
+// Database migration and initialization (FIXED)
 async function initializeDatabase() {
     return new Promise((resolve, reject) => {
         console.log('🔄 Checking database schema...');
@@ -185,8 +185,14 @@ async function initializeDatabase() {
             
             const existingColumns = columns.map(col => col.name);
             const requiredColumns = [
-                { name: 'is_ongoing', sql: 'ALTER TABLE chats ADD COLUMN is_ongoing BOOLEAN DEFAULT 0' },
-                { name: 'last_updated', sql: 'ALTER TABLE chats ADD COLUMN last_updated DATETIME DEFAULT CURRENT_TIMESTAMP' }
+                { 
+                    name: 'is_ongoing', 
+                    sql: 'ALTER TABLE chats ADD COLUMN is_ongoing BOOLEAN DEFAULT 0' 
+                },
+                { 
+                    name: 'last_updated', 
+                    sql: 'ALTER TABLE chats ADD COLUMN last_updated DATETIME' // Kein Default!
+                }
             ];
             
             // Add missing columns
@@ -207,7 +213,8 @@ async function initializeDatabase() {
                         completed++;
                         
                         if (completed === migrationsNeeded.length) {
-                            proceedWithScan();
+                            // Nach dem Hinzufügen der Spalten, setze Defaults
+                            updateMissingDefaults();
                         }
                     });
                 });
@@ -216,6 +223,27 @@ async function initializeDatabase() {
                 proceedWithScan();
             }
         });
+        
+        function updateMissingDefaults() {
+            console.log('🔄 Setting default values for new columns...');
+            
+            // Setze last_updated für bestehende Chats
+            db.run(
+                `UPDATE chats SET last_updated = created_at WHERE last_updated IS NULL`,
+                function(err) {
+                    if (err) {
+                        console.error('❌ Error setting default values:', err);
+                        return reject(err);
+                    }
+                    
+                    if (this.changes > 0) {
+                        console.log(`✅ Updated ${this.changes} rows with default timestamps`);
+                    }
+                    
+                    proceedWithScan();
+                }
+            );
+        }
         
         function proceedWithScan() {
             console.log('🔍 Scanning database...');
@@ -233,7 +261,7 @@ async function initializeDatabase() {
                         console.log(`🧹 Cleaned up ${this.changes} expired chats`);
                     }
                     
-                    // 3. Get database statistics (with fallback for missing columns)
+                    // 3. Get database statistics
                     db.all(`
                         SELECT 
                             COUNT(*) as total_chats,
@@ -256,34 +284,27 @@ async function initializeDatabase() {
                         console.log(`   Ongoing chats: ${stats.ongoing_chats}`);
                         console.log(`   With expiry: ${stats.expiring_chats}`);
                         
-                        // 4. Get comment statistics
-                        db.get(`SELECT COUNT(*) as total_comments FROM comments`, (err, row) => {
-                            if (err) {
-                                // Table might not exist in old databases
-                                console.log('   Comments: 0 (table not found)');
-                                finishStats();
-                            } else {
-                                console.log(`   Total comments: ${row.total_comments}`);
-                                
-                                // 5. Get push subscription statistics
-                                db.get(`SELECT COUNT(*) as total_subscriptions FROM push_subscriptions`, (err, row) => {
-                                    if (err) {
-                                        console.log('   Push subscriptions: 0 (table not found)');
-                                    } else {
-                                        console.log(`   Push subscriptions: ${row.total_subscriptions}`);
-                                    }
-                                    finishStats();
-                                });
-                            }
-                        });
-                        
-                        function finishStats() {
-                            console.log('✅ Database scan completed\n');
-                            resolve();
-                        }
+                        // 4. Get comment and subscription statistics
+                        getAdditionalStats();
                     });
                 }
             );
+        }
+        
+        function getAdditionalStats() {
+            // Comments
+            db.get(`SELECT COUNT(*) as total_comments FROM comments`, (err, row) => {
+                const comments = err ? 0 : row.total_comments;
+                console.log(`   Total comments: ${comments}`);
+                
+                // Push subscriptions
+                db.get(`SELECT COUNT(*) as total_subscriptions FROM push_subscriptions`, (err, row) => {
+                    const subscriptions = err ? 0 : row.total_subscriptions;
+                    console.log(`   Push subscriptions: ${subscriptions}`);
+                    console.log('✅ Database scan completed\n');
+                    resolve();
+                });
+            });
         }
     });
 }
