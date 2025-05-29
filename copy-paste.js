@@ -220,7 +220,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 // Create/Share chat
 app.post('/api/share', async (req, res) => {
     try {
-        const { chats, highlights, expiry, views, password, theme, isEditLink, customUrl } = req.body;
+        const { chats, expiry, views, password, theme, isEditLink, customUrl } = req.body;
 
         if (!chats || !Array.isArray(chats)) {
             return res.status(400).json({ error: 'Invalid chat data' });
@@ -283,7 +283,6 @@ app.post('/api/share', async (req, res) => {
 
         const chatData = {
             chats,
-            highlights,
             created: new Date().toISOString(),
             theme: theme || 'gradient'
         };
@@ -305,7 +304,7 @@ app.post('/api/share', async (req, res) => {
                     return res.status(500).json({ error: 'Failed to save chat' });
                 }
 
-                console.log(`Chat saved successfully with URL: ${animalUrl}`);
+                console.log(`Chat saved successfully with URL: ${animalUrl} (Edit: ${isEditLink ? 'Yes' : 'No'})`);
                 const urlPath = isEditLink ? `/edit/${animalUrl}` : `/chat/${animalUrl}`;
                 res.json({
                     success: true,
@@ -320,8 +319,8 @@ app.post('/api/share', async (req, res) => {
     }
 });
 
-// Get shared chat (both /chat/:url and /edit/:url)
-async function getChatHandler(req, res, isEditMode = false) {
+// Get shared chat
+app.get('/api/chat/:animalUrl', async (req, res) => {
     try {
         const { animalUrl } = req.params;
         const { password } = req.query;
@@ -345,8 +344,8 @@ async function getChatHandler(req, res, isEditMode = false) {
                     return res.status(410).json({ error: 'Chat has expired' });
                 }
 
-                // Check view limit (only for regular chats, not edit links)
-                if (!isEditMode && !chat.is_edit_link && isViewLimitExceeded(chat)) {
+                // Check view limit (not for edit links)
+                if (!chat.is_edit_link && isViewLimitExceeded(chat)) {
                     db.run(`UPDATE chats SET is_active = 0 WHERE id = ?`, [chat.id]);
                     return res.status(410).json({ error: 'View limit exceeded' });
                 }
@@ -357,8 +356,8 @@ async function getChatHandler(req, res, isEditMode = false) {
                     return res.status(401).json({ error: 'Invalid password', requiresPassword: !!chat.password_hash });
                 }
 
-                // Increment view count (only for regular chats)
-                if (!isEditMode && !chat.is_edit_link) {
+                // Increment view count (not for edit links)
+                if (!chat.is_edit_link) {
                     db.run(`UPDATE chats SET current_views = current_views + 1 WHERE id = ?`, [chat.id]);
                 }
 
@@ -366,10 +365,10 @@ async function getChatHandler(req, res, isEditMode = false) {
                 res.json({
                     success: true,
                     data: chatData,
-                    views: chat.current_views + (isEditMode || chat.is_edit_link ? 0 : 1),
+                    views: chat.current_views + (chat.is_edit_link ? 0 : 1),
                     maxViews: chat.max_views,
                     expiresAt: chat.expires_at,
-                    isEditMode: isEditMode || chat.is_edit_link
+                    isEditMode: chat.is_edit_link
                 });
             }
         );
@@ -377,10 +376,54 @@ async function getChatHandler(req, res, isEditMode = false) {
         console.error('Get chat error:', error);
         res.status(500).json({ error: 'Failed to retrieve chat' });
     }
-}
+});
 
-app.get('/api/chat/:animalUrl', (req, res) => getChatHandler(req, res, false));
-app.get('/api/edit/:animalUrl', (req, res) => getChatHandler(req, res, true));
+// Get edit chat
+app.get('/api/edit/:animalUrl', async (req, res) => {
+    try {
+        const { animalUrl } = req.params;
+        const { password } = req.query;
+
+        db.get(
+            `SELECT * FROM chats WHERE animal_url = ? AND is_active = 1 AND is_edit_link = 1`,
+            [animalUrl],
+            async (err, chat) => {
+                if (err) {
+                    console.error('Database error:', err);
+                    return res.status(500).json({ error: 'Database error' });
+                }
+
+                if (!chat) {
+                    return res.status(404).json({ error: 'Edit link not found' });
+                }
+
+                // Check if expired
+                if (isExpired(chat)) {
+                    db.run(`UPDATE chats SET is_active = 0 WHERE id = ?`, [chat.id]);
+                    return res.status(410).json({ error: 'Edit link has expired' });
+                }
+
+                // Check password (always required for edit links)
+                const passwordValid = await verifyPassword(password, chat.password_hash);
+                if (!passwordValid) {
+                    return res.status(401).json({ error: 'Invalid password', requiresPassword: true });
+                }
+
+                const chatData = JSON.parse(chat.data);
+                console.log(`Edit chat accessed: ${animalUrl}`);
+                
+                res.json({
+                    success: true,
+                    data: chatData,
+                    isEditMode: true
+                });
+            }
+        );
+    } catch (error) {
+        console.error('Get edit chat error:', error);
+        res.status(500).json({ error: 'Failed to retrieve edit chat' });
+    }
+});
 
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));

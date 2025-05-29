@@ -56,6 +56,7 @@
             padding: 30px;
             text-align: center;
             transition: all 0.3s ease;
+            position: relative; /* For theme switch positioning */
         }
 
         body.monochrom .header {
@@ -65,7 +66,14 @@
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            font-weight: 300;
+            font-weight: 700;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .header h1:hover {
+            transform: scale(1.02);
         }
 
         .header p {
@@ -152,17 +160,25 @@
             min-height: 120px;
         }
 
-        .inline-form {
+        .message-form {
             display: flex;
-            gap: 10px;
-            align-items: end;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        .inline-form .form-group {
+        .message-form-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .message-form-row .form-group {
             flex: 1;
-            min-width: 150px;
             margin-bottom: 0;
+        }
+
+        .post-button-row {
+            display: flex;
+            justify-content: center;
         }
 
         .btn {
@@ -276,7 +292,8 @@
         }
 
         .messages-container {
-            padding: 20px;
+            width: 100%;
+            padding: 20px 30px;
         }
 
         .message {
@@ -306,6 +323,10 @@
             align-items: flex-start;
         }
 
+        .message.comment {
+            align-items: center;
+        }
+
         .message-controls {
             display: none;
             gap: 5px;
@@ -319,6 +340,10 @@
 
         .message.right .message-controls {
             justify-content: flex-end;
+        }
+
+        .message.comment .message-controls {
+            justify-content: center;
         }
 
         .message-control-btn {
@@ -354,8 +379,23 @@
             border-bottom-right-radius: 4px;
         }
 
+        .message.comment .message-bubble {
+            background: #f0f0f0;
+            color: #666;
+            max-width: 90%;
+            border-radius: 12px;
+            font-style: italic;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+
         body.monochrom .message.right .message-bubble {
             background: var(--bubble-right-mono);
+        }
+
+        body.monochrom .message.comment .message-bubble {
+            background: #e8e8e8;
+            color: #555;
         }
 
         .message-info {
@@ -390,44 +430,6 @@
             margin-top: 8px;
         }
 
-        .highlight-mode {
-            background: rgba(255, 0, 0, 0.1);
-        }
-
-        .highlight-instructions {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .highlight-instructions.active {
-            display: block;
-        }
-
-        .highlighted-text {
-            background: rgba(255, 0, 0, 0.3);
-            padding: 2px 4px;
-            border-radius: 4px;
-        }
-
-        .highlight-circle {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            background: rgba(255, 0, 0, 0.7);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 10;
-            cursor: pointer;
-        }
-
-        .highlight-circle:hover {
-            background: rgba(255, 0, 0, 0.9);
-        }
-
         .action-buttons {
             display: flex;
             gap: 15px;
@@ -446,6 +448,17 @@
 
         .share-options.active {
             display: block;
+        }
+
+        .edit-notice {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            text-align: center;
+            font-style: italic;
+            color: #856404;
         }
 
         .edit-link-info {
@@ -522,7 +535,6 @@
 
             .header {
                 padding: 20px;
-                position: relative;
             }
 
             .header h1 {
@@ -539,13 +551,13 @@
                 padding: 20px;
             }
 
-            .inline-form {
-                flex-direction: column;
+            .messages-container {
+                padding: 20px 15px;
             }
 
-            .inline-form .form-group {
-                margin-bottom: 15px;
-                width: 100%;
+            .message-form-row {
+                flex-direction: column;
+                gap: 15px;
             }
 
             .action-buttons {
@@ -561,6 +573,10 @@
             .message-bubble {
                 max-width: 85%;
             }
+
+            .message.comment .message-bubble {
+                max-width: 95%;
+            }
         }
     </style>
 </head>
@@ -572,7 +588,7 @@
                 <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
                 <span>Monochrom</span>
             </div>
-            <h1>☕ Spill The Tea</h1>
+            <h1 onclick="window.location.href='/'">☕ Spill The Tea</h1>
             <p>Eine Chat Share App von @pimmelkopter</p>
         </div>
 
@@ -603,8 +619,8 @@
                             <button onclick="editPerson('them')" style="background:none;border:none;cursor:pointer;">✏️</button>
                         </div>
                     </div>
-                    <div class="inline-form">
-                        <div class="form-group">
+                    <div style="display: flex; gap: 10px; align-items: end;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
                             <input type="text" id="newPersonName" placeholder="Neue Person hinzufügen">
                         </div>
                         <button class="btn btn-secondary" onclick="addPerson()">Hinzufügen</button>
@@ -612,15 +628,18 @@
                 </div>
 
                 <!-- Message Input -->
-                <div class="inline-form" id="messageForm">
+                <div class="message-form">
                     <div class="form-group">
                         <label for="messageText">Nachricht</label>
                         <textarea id="messageText" placeholder="Schreibe eine Nachricht..."></textarea>
+                    </div>
+                    
                         <div class="file-upload">
                             <label for="messageImage">📎 Bild anhängen</label>
                             <input type="file" id="messageImage" accept="image/*">
                         </div>
-                    </div>
+                    
+                    <div class="message-form-row">
                     <div class="form-group">
                         <label for="messageSender">Von</label>
                         <select id="messageSender">
@@ -637,7 +656,11 @@
                         <input type="date" id="messageDate">
                     </div>
                 </div>
+                    
+                    <div class="post-button-row">
                 <button class="btn" onclick="addMessage()" id="postBtn">Post</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Chat Preview -->
@@ -645,24 +668,20 @@
                 <div id="messagesContainer" class="messages-container"></div>
             </div>
 
-            <!-- Highlight Instructions -->
-            <div class="highlight-instructions" id="highlightInstructions">
-                <strong>Highlight Modus aktiv:</strong><br>
-                • Text markieren um ihn zu highlighten<br>
-                • Außerhalb der Bubbles klicken um rote Kreise zu setzen<br>
-                • Nochmals auf Highlights klicken um sie zu entfernen
-            </div>
-
             <!-- Action Buttons -->
             <div class="action-buttons">
                 <button class="btn btn-secondary" onclick="scrollToMessageForm()">Add Message</button>
+                <button class="btn btn-secondary" onclick="addComment()">Add Comment</button>
                 <button class="btn btn-secondary" onclick="addNewChat()">Add Chat</button>
-                <button class="btn btn-danger" onclick="toggleHighlightMode()" id="highlightBtn">Add Highlights</button>
                 <button class="btn" onclick="toggleShareOptions()" id="shareToggleBtn">Spill the Tea ☕</button>
             </div>
 
             <!-- Share Options -->
             <div class="share-options" id="shareOptions">
+                <div id="editNotice" class="edit-notice" style="display: none;">
+                    Ein bearbeiteter Chat wird immer mit einem neuen Link geteilt.
+                </div>
+                
                 <h3>Sharing Optionen</h3>
                 <div class="form-group">
                     <label for="shareExpiry">Verfallszeit</label>
@@ -714,22 +733,18 @@
 
     <script>
         // Global state
-        let chats = [{ title: '', messages: [], persons: { you: 'Du', them: 'Them' } }];
+        let chats = [{ title: '', messages: [], persons: { you: 'Du', them: 'Them' }, showNames: false }];
         let currentChatIndex = 0;
-        let highlightMode = false;
-        let highlights = [];
-        let showNames = false;
         let editingMessageIndex = -1;
         let isMonochrom = false;
+        let isEditMode = false;
 
         // Local storage management
         function saveToLocalStorage() {
             const state = {
                 chats,
                 currentChatIndex,
-                showNames,
-                isMonochrom,
-                highlights
+                isMonochrom
             };
             localStorage.setItem('spillthetea_editor_state', JSON.stringify(state));
         }
@@ -739,13 +754,10 @@
             if (saved) {
                 try {
                     const state = JSON.parse(saved);
-                    chats = state.chats || [{ title: '', messages: [], persons: { you: 'Du', them: 'Them' } }];
+                    chats = state.chats || [{ title: '', messages: [], persons: { you: 'Du', them: 'Them' }, showNames: false }];
                     currentChatIndex = state.currentChatIndex || 0;
-                    showNames = state.showNames || false;
                     isMonochrom = state.isMonochrom || false;
-                    highlights = state.highlights || [];
                     
-                    document.getElementById('showNamesToggle').checked = showNames;
                     document.getElementById('themeToggle').checked = isMonochrom;
                     if (isMonochrom) document.body.classList.add('monochrom');
                     
@@ -759,6 +771,60 @@
 
         function clearLocalStorage() {
             localStorage.removeItem('spillthetea_editor_state');
+        }
+
+        // Check if this is edit mode
+        function checkEditMode() {
+            const path = window.location.pathname;
+            const editMatch = path.match(/\/edit\/([a-z0-9]+)/);
+            if (editMatch) {
+                isEditMode = true;
+                loadEditChat(editMatch[1]);
+            }
+        }
+
+        async function loadEditChat(editUrl) {
+            try {
+                const password = prompt('Edit-Passwort eingeben:');
+                if (!password) {
+                    window.location.href = '/';
+                    return;
+                }
+
+                const response = await fetch(`/api/edit/${editUrl}?password=${encodeURIComponent(password)}`);
+                const result = await response.json();
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        alert('Falsches Passwort!');
+                        window.location.href = '/';
+                        return;
+                    } else {
+                        alert('Fehler beim Laden: ' + result.error);
+                        window.location.href = '/';
+                        return;
+                    }
+                }
+
+                // Load chat data
+                chats = result.data.chats;
+                isMonochrom = result.data.theme === 'monochrom';
+                
+                document.getElementById('themeToggle').checked = isMonochrom;
+                if (isMonochrom) document.body.classList.add('monochrom');
+                
+                updateCurrentChatUI();
+                updatePreview();
+                
+                // Show edit notice
+                document.getElementById('editNotice').style.display = 'block';
+                
+                showAlert('Chat erfolgreich geladen! Vergiss nicht, nach Änderungen einen neuen Link zu erstellen.', 'success');
+            } catch (error) {
+                console.error('Load edit chat error:', error);
+                alert('Verbindungsfehler');
+                window.location.href = '/';
+            }
         }
 
         // Theme functions
@@ -800,7 +866,11 @@
         }
 
         function scrollToMessageForm() {
-            smoothScrollTo('messageForm');
+            const messageText = document.getElementById('messageText');
+            if (messageText) {
+                messageText.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                messageText.focus();
+            }
         }
 
         function scrollToBottom() {
@@ -815,9 +885,14 @@
             return chats[currentChatIndex].persons;
         }
 
+        function getCurrentShowNames() {
+            return chats[currentChatIndex].showNames || false;
+        }
+
         function updateCurrentChatUI() {
             const currentChat = chats[currentChatIndex];
             document.getElementById('chatTitle').value = currentChat.title || '';
+            document.getElementById('showNamesToggle').checked = currentChat.showNames || false;
             updatePersonList();
             updatePersonSelect();
         }
@@ -837,6 +912,7 @@
             const currentChat = chats[currentChatIndex];
             currentChat.title = document.getElementById('chatTitle').value.trim();
             currentChat.persons = getCurrentPersons();
+            currentChat.showNames = document.getElementById('showNamesToggle').checked;
         }
 
         async function uploadFile(file) {
@@ -864,6 +940,12 @@
         function updatePersonSelect() {
             const select = document.getElementById('messageSender');
             select.innerHTML = '';
+            
+            // Add comment option
+            const commentOption = document.createElement('option');
+            commentOption.value = 'comment';
+            commentOption.textContent = 'Comment';
+            select.appendChild(commentOption);
             
             Object.entries(getCurrentPersons()).forEach(([key, name]) => {
                 const option = document.createElement('option');
@@ -899,7 +981,7 @@
         }
 
         function toggleShowNames() {
-            showNames = document.getElementById('showNamesToggle').checked;
+            chats[currentChatIndex].showNames = document.getElementById('showNamesToggle').checked;
             updatePreview();
             saveToLocalStorage();
         }
@@ -941,7 +1023,12 @@
             editingMessageIndex = messageIndex;
             document.getElementById('postBtn').textContent = 'Update';
             
-            smoothScrollTo('messageForm');
+            scrollToMessageForm();
+        }
+
+        function addComment() {
+            document.getElementById('messageSender').value = 'comment';
+            scrollToMessageForm();
         }
 
         async function addMessage() {
@@ -995,6 +1082,10 @@
                 document.getElementById('messageDate').value = '';
                 imageInput.value = '';
                 
+                // Reset sender to first non-comment option
+                const senderSelect = document.getElementById('messageSender');
+                senderSelect.value = 'you';
+                
                 // Scroll to new message
                 setTimeout(scrollToBottom, 100);
                 
@@ -1022,7 +1113,8 @@
                 if (chatIndex === currentChatIndex || chatIndex < currentChatIndex) {
                     chat.messages.forEach((message, messageIndex) => {
                     const messageDiv = document.createElement('div');
-                    messageDiv.className = `message ${message.sender === 'you' ? 'right' : 'left'}`;
+                        const messageClass = message.sender === 'comment' ? 'comment' : (message.sender === 'you' ? 'right' : 'left');
+                        messageDiv.className = `message ${messageClass}`;
                         
                         // Add message controls for current chat
                         if (chatIndex === currentChatIndex) {
@@ -1036,8 +1128,8 @@
                             messageDiv.appendChild(controls);
                         }
                     
-                    // Add sender name if enabled
-                    if (showNames) {
+                    // Add sender name if enabled (but not for comments)
+                    if (chat.showNames && message.sender !== 'comment') {
                         const senderDiv = document.createElement('div');
                         senderDiv.className = 'message-sender';
                         senderDiv.textContent = chat.persons[message.sender] || message.sender;
@@ -1079,11 +1171,11 @@
         function addNewChat() {
             saveCurrentChatState();
             
-            const title = document.getElementById('chatTitle').value.trim();
             chats.push({ 
                 title: '', 
                 messages: [], 
-                persons: { ...getCurrentPersons() } // Copy current persons
+                persons: { ...getCurrentPersons() }, // Copy current persons
+                showNames: false
             });
             currentChatIndex = chats.length - 1;
             
@@ -1092,99 +1184,8 @@
             updatePreview();
             saveToLocalStorage();
             
-            smoothScrollTo('chatTitle');
-        }
-
-        function toggleHighlightMode() {
-            highlightMode = !highlightMode;
-            const btn = document.getElementById('highlightBtn');
-            const preview = document.getElementById('chatPreview');
-            const instructions = document.getElementById('highlightInstructions');
-            
-            if (highlightMode) {
-                btn.textContent = 'Highlights beenden';
-                btn.style.background = 'var(--btn-danger-gradient)';
-                preview.classList.add('highlight-mode');
-                instructions.classList.add('active');
-                enableTextSelection();
-            } else {
-                btn.textContent = 'Add Highlights';
-                btn.style.background = '';
-                preview.classList.remove('highlight-mode');
-                instructions.classList.remove('active');
-                disableTextSelection();
-            }
-        }
-
-        function enableTextSelection() {
-            const preview = document.getElementById('chatPreview');
-            preview.addEventListener('mouseup', handleTextSelection);
-            preview.addEventListener('click', handleCircleAdd);
-        }
-
-        function disableTextSelection() {
-            const preview = document.getElementById('chatPreview');
-            preview.removeEventListener('mouseup', handleTextSelection);
-            preview.removeEventListener('click', handleCircleAdd);
-        }
-
-        function handleTextSelection() {
-            const selection = window.getSelection();
-            if (selection.toString().trim()) {
-                const range = selection.getRangeAt(0);
-                const span = document.createElement('span');
-                span.className = 'highlighted-text';
-                span.dataset.highlightId = Date.now() + Math.random();
-                span.onclick = (e) => {
-                    e.stopPropagation();
-                    const highlightId = span.dataset.highlightId;
-                    span.outerHTML = span.innerHTML; // Remove highlight
-                    // Remove from highlights array
-                    highlights = highlights.filter(h => h.id !== highlightId);
-                    saveToLocalStorage();
-                };
-                try {
-                    range.surroundContents(span);
-                    selection.removeAllRanges();
-                    // Save highlight
-                    highlights.push({
-                        id: span.dataset.highlightId,
-                        type: 'text',
-                        text: span.textContent
-                    });
-                    saveToLocalStorage();
-                } catch (e) {
-                    console.log('Complex selection detected');
-                }
-            }
-        }
-
-        function handleCircleAdd(e) {
-            if (e.target.closest('.message-bubble') || e.target.closest('.chat-title')) return;
-            
-            const circle = document.createElement('div');
-            circle.className = 'highlight-circle';
-            circle.dataset.highlightId = Date.now() + Math.random();
-            circle.style.left = (e.offsetX - 10) + 'px';
-            circle.style.top = (e.offsetY - 10) + 'px';
-            circle.onclick = (e) => {
-                e.stopPropagation();
-                const highlightId = circle.dataset.highlightId;
-                circle.remove();
-                // Remove from highlights array
-                highlights = highlights.filter(h => h.id !== highlightId);
-                saveToLocalStorage();
-            };
-            e.currentTarget.appendChild(circle);
-            
-            // Save highlight
-            highlights.push({
-                id: circle.dataset.highlightId,
-                type: 'circle',
-                x: e.offsetX - 10,
-                y: e.offsetY - 10
-            });
-            saveToLocalStorage();
+            document.getElementById('chatTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('chatTitle').focus();
         }
 
         function toggleShareOptions() {
@@ -1192,7 +1193,7 @@
             const isActive = options.classList.toggle('active');
             
             if (isActive) {
-                setTimeout(() => smoothScrollTo('shareOptions'), 100);
+                setTimeout(() => options.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
             }
         }
 
@@ -1223,7 +1224,6 @@
                 
                 const chatData = {
                     chats,
-                    highlights,
                     expiry,
                     views,
                     password: password || null,
@@ -1254,12 +1254,12 @@
                 const editPassword = generateRandomString(6);
                 const editData = {
                     chats,
-                    highlights,
                     expiry: '2days', // Always 2 days for edit links
                     views: 'unlimited',
                     password: editPassword,
                     theme: isMonochrom ? 'monochrom' : 'gradient',
-                    isEditLink: true
+                    isEditLink: true,
+                    customUrl: editUrl
                 };
                 
                 const editResponse = await fetch('/api/share', {
@@ -1267,11 +1267,10 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({...editData, customUrl: editUrl})
+                    body: JSON.stringify(editData)
                 });
                 
                 if (editResponse.ok) {
-                    const editResult = await editResponse.json();
                     const editFullUrl = `${window.location.origin}/edit/${editUrl}`;
                     const currentTitle = chats[0].title || 'Unnamed Chat';
                     const expiryDate = new Date();
@@ -1285,6 +1284,11 @@
                 }
                 
                 showAlert('Link erfolgreich erstellt!', 'success');
+                
+                // Scroll to results
+                setTimeout(() => {
+                    document.getElementById('shareResult').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 200);
                 
                 // Clear local storage after successful share
                 clearLocalStorage();
@@ -1330,7 +1334,10 @@
 
         // Initialize
         window.addEventListener('load', () => {
+            checkEditMode();
+            if (!isEditMode) {
             loadFromLocalStorage();
+            }
         updatePersonList();
         updatePersonSelect();
         updatePreview();
@@ -1341,8 +1348,10 @@
 
         // Auto-save before page unload
         window.addEventListener('beforeunload', () => {
+            if (!isEditMode) {
             saveCurrentChatState();
             saveToLocalStorage();
+            }
         });
     </script>
 </body>

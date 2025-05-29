@@ -61,7 +61,14 @@
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            font-weight: 300;
+            font-weight: 700;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .header h1:hover {
+            transform: scale(1.02);
         }
 
         .header p {
@@ -93,7 +100,8 @@
         }
 
         .messages-container {
-            padding: 20px;
+            width: 100%;
+            padding: 20px 30px;
         }
 
         .message {
@@ -122,6 +130,10 @@
             align-items: flex-start;
         }
 
+        .message.comment {
+            align-items: center;
+        }
+
         .message-bubble {
             max-width: 70%;
             padding: 12px 16px;
@@ -142,8 +154,23 @@
             border-bottom-right-radius: 4px;
         }
 
+        .message.comment .message-bubble {
+            background: #f0f0f0;
+            color: #666;
+            max-width: 90%;
+            border-radius: 12px;
+            font-style: italic;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+
         body.monochrom .message.right .message-bubble {
             background: var(--bubble-right-mono);
+        }
+
+        body.monochrom .message.comment .message-bubble {
+            background: #e8e8e8;
+            color: #555;
         }
 
         .message-info {
@@ -176,22 +203,6 @@
             max-width: 100%;
             border-radius: 12px;
             margin-top: 8px;
-        }
-
-        .highlighted-text {
-            background: rgba(255, 0, 0, 0.3);
-            padding: 2px 4px;
-            border-radius: 4px;
-        }
-
-        .highlight-circle {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            background: rgba(255, 0, 0, 0.7);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 10;
         }
 
         .loading {
@@ -279,18 +290,23 @@
             color: #155724;
         }
 
+        .bottom-section {
+            text-align: center;
+            margin-top: 50px;
+            padding-top: 30px;
+            border-top: 1px solid #e1e5e9;
+        }
+
         .back-button {
             display: inline-block;
             background: var(--btn-gradient);
             color: #333;
             text-decoration: none;
-            padding: 12px 24px;
+            padding: 15px 30px;
             border-radius: 12px;
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            font-size: 1.1rem;
             transition: all 0.3s ease;
-            margin-bottom: 20px;
         }
 
         body.monochrom .back-button {
@@ -320,8 +336,16 @@
                 padding: 20px;
             }
 
+            .messages-container {
+                padding: 20px 15px;
+            }
+
             .message-bubble {
                 max-width: 85%;
+            }
+
+            .message.comment .message-bubble {
+                max-width: 95%;
             }
         }
     </style>
@@ -329,13 +353,11 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>☕ Spill The Tea</h1>
+            <h1 onclick="window.location.href='/'">☕ Spill The Tea</h1>
             <p>Geteilter Chat - fresh and hot</p>
         </div>
 
         <div class="main-content">
-            <a href="/" class="back-button">← Spill your Tea</a>
-            
             <div id="loading" class="loading">
                 <div class="loading-spinner"></div>
             </div>
@@ -360,6 +382,10 @@
                 <h2>❌ Fehler</h2>
                 <p id="errorText"></p>
             </div>
+
+            <div class="bottom-section" id="bottomSection" style="display: none;">
+                <a href="/" class="back-button">want to spill some tea? ☕</a>
+            </div>
         </div>
     </div>
 
@@ -371,6 +397,7 @@
             document.getElementById('loading').style.display = 'none';
             document.getElementById('passwordForm').style.display = 'none';
             document.getElementById('chatContent').style.display = 'none';
+            document.getElementById('bottomSection').style.display = 'none';
             document.getElementById('errorMessage').style.display = 'block';
             document.getElementById('errorText').textContent = message;
         }
@@ -379,6 +406,7 @@
             document.getElementById('loading').style.display = 'none';
             document.getElementById('errorMessage').style.display = 'none';
             document.getElementById('chatContent').style.display = 'none';
+            document.getElementById('bottomSection').style.display = 'none';
             document.getElementById('passwordForm').style.display = 'block';
             document.getElementById('passwordInput').focus();
         }
@@ -388,6 +416,7 @@
             document.getElementById('passwordForm').style.display = 'none';
             document.getElementById('errorMessage').style.display = 'none';
             document.getElementById('chatContent').style.display = 'block';
+            document.getElementById('bottomSection').style.display = 'block';
         }
 
         function applyTheme(theme) {
@@ -492,10 +521,11 @@
 
                 chat.messages.forEach(message => {
                     const messageDiv = document.createElement('div');
-                    messageDiv.className = `message ${message.sender === 'you' ? 'right' : 'left'}`;
+                    const messageClass = message.sender === 'comment' ? 'comment' : (message.sender === 'you' ? 'right' : 'left');
+                    messageDiv.className = `message ${messageClass}`;
 
-                    // Add sender name if available
-                    if (chat.persons && chat.persons[message.sender]) {
+                    // Add sender name if available (but not for comments)
+                    if (chat.showNames && message.sender !== 'comment' && chat.persons && chat.persons[message.sender]) {
                         const senderDiv = document.createElement('div');
                         senderDiv.className = 'message-sender';
                         senderDiv.textContent = chat.persons[message.sender];
@@ -534,22 +564,6 @@
                     container.appendChild(messageDiv);
                 });
             });
-
-            // Apply highlights if any
-            if (chatData.highlights && chatData.highlights.length > 0) {
-                setTimeout(() => {
-                    chatData.highlights.forEach(highlight => {
-                        if (highlight.type === 'circle') {
-                            const circle = document.createElement('div');
-                            circle.className = 'highlight-circle';
-                            circle.style.left = highlight.x + 'px';
-                            circle.style.top = highlight.y + 'px';
-                            container.appendChild(circle);
-                        }
-                        // Text highlights are already in the HTML structure
-                    });
-                }, 100);
-            }
         }
 
         async function submitPassword() {
