@@ -171,70 +171,120 @@ db.serialize(async () => {
 await initializeDatabase();
 });
 
+// Database migration and initialization
 async function initializeDatabase() {
     return new Promise((resolve, reject) => {
-        console.log('🔍 Scanning database on startup...');
+        console.log('🔄 Checking database schema...');
         
-        // 1. Cleanup expired chats immediately
-        db.run(
-            `UPDATE chats SET is_active = 0 WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`,
-            function(err) {
-                if (err) {
-                    console.error('❌ Error cleaning up expired chats:', err);
-                    return reject(err);
-                }
+        // 1. Check existing columns and add missing ones
+        db.all("PRAGMA table_info(chats)", (err, columns) => {
+            if (err) {
+                console.error('❌ Error checking schema:', err);
+                return reject(err);
+            }
+            
+            const existingColumns = columns.map(col => col.name);
+            const requiredColumns = [
+                { name: 'is_ongoing', sql: 'ALTER TABLE chats ADD COLUMN is_ongoing BOOLEAN DEFAULT 0' },
+                { name: 'last_updated', sql: 'ALTER TABLE chats ADD COLUMN last_updated DATETIME DEFAULT CURRENT_TIMESTAMP' }
+            ];
+            
+            // Add missing columns
+            let migrationsNeeded = requiredColumns.filter(col => !existingColumns.includes(col.name));
+            
+            if (migrationsNeeded.length > 0) {
+                console.log(`📊 Adding ${migrationsNeeded.length} missing columns...`);
                 
-                if (this.changes > 0) {
-                    console.log(`🧹 Cleaned up ${this.changes} expired chats`);
-                }
-                
-                // 2. Get database statistics
-                db.all(`
-                    SELECT 
-                        COUNT(*) as total_chats,
-                        COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_chats,
-                        COUNT(CASE WHEN is_edit_link = 1 THEN 1 END) as edit_links,
-                        COUNT(CASE WHEN is_ongoing = 1 THEN 1 END) as ongoing_chats,
-                        COUNT(CASE WHEN expires_at IS NOT NULL AND expires_at > datetime('now') THEN 1 END) as expiring_chats
-                    FROM chats
-                `, (err, rows) => {
-                    if (err) {
-                        console.error('❌ Error getting database stats:', err);
-                        return reject(err);
-                    }
-                    
-                    const stats = rows[0];
-                    console.log('📊 Database Statistics:');
-                    console.log(`   Total chats: ${stats.total_chats}`);
-                    console.log(`   Active chats: ${stats.active_chats}`);
-                    console.log(`   Edit links: ${stats.edit_links}`);
-                    console.log(`   Ongoing chats: ${stats.ongoing_chats}`);
-                    console.log(`   With expiry: ${stats.expiring_chats}`);
-                    
-                    // 3. Get comment statistics
-                    db.get(`SELECT COUNT(*) as total_comments FROM comments`, (err, row) => {
+                let completed = 0;
+                migrationsNeeded.forEach(migration => {
+                    db.run(migration.sql, (err) => {
                         if (err) {
-                            console.error('❌ Error getting comment stats:', err);
+                            console.error(`❌ Error adding column ${migration.name}:`, err);
                             return reject(err);
                         }
                         
-                        console.log(`   Total comments: ${row.total_comments}`);
+                        console.log(`✅ Added column: ${migration.name}`);
+                        completed++;
                         
-                        // 4. Get push subscription statistics
-                        db.get(`SELECT COUNT(*) as total_subscriptions FROM push_subscriptions`, (err, row) => {
-                            if (err) {
-                                console.error('❌ Error getting subscription stats:', err);
-                                return reject(err);
-                            }
-                            
-                            console.log(`   Push subscriptions: ${row.total_subscriptions}`);
-                            console.log('✅ Database scan completed\n');
-                            resolve();
-                        });
+                        if (completed === migrationsNeeded.length) {
+                            proceedWithScan();
+                        }
                     });
                 });
+            } else {
+                console.log('✅ Database schema is up to date');
+                proceedWithScan();
             }
-        );
+        });
+        
+        function proceedWithScan() {
+            console.log('🔍 Scanning database...');
+            
+            // 2. Cleanup expired chats immediately
+            db.run(
+                `UPDATE chats SET is_active = 0 WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`,
+                function(err) {
+                    if (err) {
+                        console.error('❌ Error cleaning up expired chats:', err);
+                        return reject(err);
+                    }
+                    
+                    if (this.changes > 0) {
+                        console.log(`🧹 Cleaned up ${this.changes} expired chats`);
+                    }
+                    
+                    // 3. Get database statistics (with fallback for missing columns)
+                    db.all(`
+                        SELECT 
+                            COUNT(*) as total_chats,
+                            COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_chats,
+                            COUNT(CASE WHEN is_edit_link = 1 THEN 1 END) as edit_links,
+                            COUNT(CASE WHEN COALESCE(is_ongoing, 0) = 1 THEN 1 END) as ongoing_chats,
+                            COUNT(CASE WHEN expires_at IS NOT NULL AND expires_at > datetime('now') THEN 1 END) as expiring_chats
+                        FROM chats
+                    `, (err, rows) => {
+                        if (err) {
+                            console.error('❌ Error getting database stats:', err);
+                            return reject(err);
+                        }
+                        
+                        const stats = rows[0];
+                        console.log('📊 Database Statistics:');
+                        console.log(`   Total chats: ${stats.total_chats}`);
+                        console.log(`   Active chats: ${stats.active_chats}`);
+                        console.log(`   Edit links: ${stats.edit_links}`);
+                        console.log(`   Ongoing chats: ${stats.ongoing_chats}`);
+                        console.log(`   With expiry: ${stats.expiring_chats}`);
+                        
+                        // 4. Get comment statistics
+                        db.get(`SELECT COUNT(*) as total_comments FROM comments`, (err, row) => {
+                            if (err) {
+                                // Table might not exist in old databases
+                                console.log('   Comments: 0 (table not found)');
+                                finishStats();
+                            } else {
+                                console.log(`   Total comments: ${row.total_comments}`);
+                                
+                                // 5. Get push subscription statistics
+                                db.get(`SELECT COUNT(*) as total_subscriptions FROM push_subscriptions`, (err, row) => {
+                                    if (err) {
+                                        console.log('   Push subscriptions: 0 (table not found)');
+                                    } else {
+                                        console.log(`   Push subscriptions: ${row.total_subscriptions}`);
+                                    }
+                                    finishStats();
+                                });
+                            }
+                        });
+                        
+                        function finishStats() {
+                            console.log('✅ Database scan completed\n');
+                            resolve();
+                        }
+                    });
+                }
+            );
+        }
     });
 }
 
