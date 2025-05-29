@@ -1691,35 +1691,45 @@
                 'Alle bisherigen Chats gehen verloren. Möchtest du mit einem neuen Chat beginnen?';
                 
             if (confirm(message)) {
+                // Komplett zurücksetzen
                 clearLocalStorage();
-                window.location.href = '/';
-            }
-        }
-
-        // Click outside modal to close
-        window.onclick = function(event) {
-            const modal = document.getElementById('faqModal');
-            if (event.target === modal) {
-                closeFAQ();
-            }
-        }
-
-        // Initialize
-        window.addEventListener('load', () => {
-            checkEditMode();
-            if (!isEditMode) {
-            loadFromLocalStorage();
-            }
-        updatePersonList();
-        updatePersonSelect();
-        updatePreview();
+                
+                // State zurücksetzen
+                chats = [{ title: '', messages: [], persons: { you: 'Du', them: 'Them' }, showNames: false }];
+                currentChatIndex = 0;
+                editingMessageIndex = -1;
+                isEditMode = false;
+                isOngoingMode = false;
+                currentEditUrl = null;
+                currentEditPassword = null;
+                
+                // UI zurücksetzen
+                document.getElementById('chatTitle').value = '';
+                document.getElementById('messageText').value = '';
+                document.getElementById('messageTime').value = '';
+                document.getElementById('messageDate').value = '';
+                document.getElementById('messageImage').value = '';
+                document.getElementById('showNamesToggle').checked = false;
+                document.getElementById('postBtn').textContent = 'Post';
+                
+                // Share Options schließen
+                document.getElementById('shareOptions').classList.remove('active', 'ongoing-mode');
+                document.getElementById('shareResult').style.display = 'none';
+                document.getElementById('editLinkInfo').classList.remove('active');
+                document.getElementById('editNotice').style.display = 'none';
             
-            // Auto-save on input changes
-            document.getElementById('chatTitle').addEventListener('input', () => {
+                // Alerts leeren
+                document.getElementById('alerts').innerHTML = '';
+                
+                // UI neu aufbauen
+                updateCurrentChatUI();
                 updatePreview();
-                saveToLocalStorage();
-            });
-        });
+                // Nach oben scrollen
+                window.scrollTo(0, 0);
+                
+                console.log('🆕 New Tea started - all data cleared');
+            }
+        }
 
         // Auto-save before page unload
         window.addEventListener('beforeunload', () => {

@@ -466,6 +466,15 @@ app.get('/sw.js', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'sw.js'));
 });
 
+app.get('/favicon.ico', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'favicon.ico'), (err) => {
+        if (err) {
+            // Fallback wenn favicon nicht existiert
+            res.status(404).send('Favicon not found');
+        }
+    });
+});
+
 // Get VAPID public key
 app.get('/api/vapid-public-key', (req, res) => {
     res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
