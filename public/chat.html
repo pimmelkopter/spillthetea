@@ -3,8 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geteilter Chat - Chat Share</title>
+    <title>fresh and hot - Spill The Tea</title>
     <style>
+        :root {
+            /* Gradient Theme (Default) */
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --header-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --btn-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            --bubble-right-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            
+            /* Monochrom Theme */
+            --bg-mono: #f5f5f5;
+            --header-mono: #333;
+            --btn-mono: #999;
+            --bubble-right-mono: #333;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,9 +27,14 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--bg-gradient);
             min-height: 100vh;
             padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        body.monochrom {
+            background: var(--bg-mono);
         }
 
         .container {
@@ -28,10 +47,15 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: var(--header-gradient);
             color: white;
             padding: 30px;
             text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        body.monochrom .header {
+            background: var(--header-mono);
         }
 
         .header h1 {
@@ -52,9 +76,10 @@
         .chat-preview {
             background: #f8f9fa;
             border-radius: 12px;
-            padding: 20px;
+            padding: 0;
             margin-bottom: 30px;
             min-height: 200px;
+            overflow: hidden;
         }
 
         .chat-title {
@@ -63,8 +88,12 @@
             margin-bottom: 20px;
             color: #333;
             text-align: center;
-            padding-bottom: 10px;
+            padding: 20px 20px 10px 20px;
             border-bottom: 2px solid #e1e5e9;
+        }
+
+        .messages-container {
+            padding: 20px;
         }
 
         .message {
@@ -108,9 +137,13 @@
         }
 
         .message.right .message-bubble {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: var(--bubble-right-gradient);
             color: white;
             border-bottom-right-radius: 4px;
+        }
+
+        body.monochrom .message.right .message-bubble {
+            background: var(--bubble-right-mono);
         }
 
         .message-info {
@@ -133,6 +166,10 @@
         .message.right .message-sender {
             color: #4facfe;
             text-align: right;
+        }
+
+        body.monochrom .message.right .message-sender {
+            color: #333;
         }
 
         .message-image {
@@ -212,14 +249,20 @@
         }
 
         .password-form button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--btn-gradient);
+            color: #333;
             border: none;
             padding: 10px 20px;
             border-radius: 8px;
             font-size: 16px;
             cursor: pointer;
             margin: 10px;
+            transition: all 0.3s ease;
+        }
+
+        body.monochrom .password-form button {
+            background: var(--btn-mono);
+            color: white;
         }
 
         .password-form button:hover {
@@ -238,7 +281,7 @@
 
         .back-button {
             display: inline-block;
-            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            background: var(--btn-gradient);
             color: #333;
             text-decoration: none;
             padding: 12px 24px;
@@ -248,6 +291,11 @@
             letter-spacing: 1px;
             transition: all 0.3s ease;
             margin-bottom: 20px;
+        }
+
+        body.monochrom .back-button {
+            background: var(--btn-mono);
+            color: white;
         }
 
         .back-button:hover {
@@ -281,12 +329,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>💬 Chat Share</h1>
-            <p>Geteilter Chat</p>
+            <h1>☕ Spill The Tea</h1>
+            <p>Geteilter Chat - fresh and hot</p>
         </div>
 
         <div class="main-content">
-            <a href="/" class="back-button">← Zurück zur Hauptseite</a>
+            <a href="/" class="back-button">← Spill your Tea</a>
             
             <div id="loading" class="loading">
                 <div class="loading-spinner"></div>
@@ -304,7 +352,7 @@
                 <div id="chatInfo" class="chat-info" style="display: none;"></div>
                 
                 <div class="chat-preview">
-                    <div id="messagesContainer"></div>
+                    <div id="messagesContainer" class="messages-container"></div>
                 </div>
             </div>
 
@@ -342,6 +390,12 @@
             document.getElementById('chatContent').style.display = 'block';
         }
 
+        function applyTheme(theme) {
+            if (theme === 'monochrom') {
+                document.body.classList.add('monochrom');
+            }
+        }
+
         async function loadChat(password = null) {
             try {
                 const path = window.location.pathname;
@@ -375,6 +429,12 @@
                 }
 
                 chatData = result.data;
+                
+                // Apply theme
+                if (chatData.theme) {
+                    applyTheme(chatData.theme);
+                }
+                
                 displayChat();
                 showChatInfo(result);
                 showChatContent();
@@ -423,16 +483,10 @@
             container.innerHTML = '';
 
             chatData.chats.forEach((chat, chatIndex) => {
-                if (chatIndex > 0) {
-                    const separator = document.createElement('div');
-                    separator.style.cssText = 'margin: 30px 0; padding: 20px 0; border-top: 2px solid #e1e5e9;';
-                    container.appendChild(separator);
-                }
-
-                if (chat.title) {
+                if (chatIndex > 0 || chat.title) {
                     const title = document.createElement('div');
                     title.className = 'chat-title';
-                    title.textContent = chat.title;
+                    title.textContent = chat.title || `Chat ${chatIndex + 1}`;
                     container.appendChild(title);
                 }
 
@@ -441,10 +495,10 @@
                     messageDiv.className = `message ${message.sender === 'you' ? 'right' : 'left'}`;
 
                     // Add sender name if available
-                    if (chatData.persons && chatData.persons[message.sender]) {
+                    if (chat.persons && chat.persons[message.sender]) {
                         const senderDiv = document.createElement('div');
                         senderDiv.className = 'message-sender';
-                        senderDiv.textContent = chatData.persons[message.sender];
+                        senderDiv.textContent = chat.persons[message.sender];
                         messageDiv.appendChild(senderDiv);
                     }
 
@@ -484,7 +538,6 @@
             // Apply highlights if any
             if (chatData.highlights && chatData.highlights.length > 0) {
                 // Implementation for highlights would go here
-                // For now, just log that highlights exist
                 console.log('Highlights found:', chatData.highlights);
             }
         }

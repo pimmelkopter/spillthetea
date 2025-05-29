@@ -76,7 +76,13 @@ const upload = multer({
 });
 
 // Database setup
-const db = new sqlite3.Database('./chatshare.db');
+const dbPath = process.env.DATABASE_PATH || './data/chatshare.db';
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+}
+
+const db = new sqlite3.Database(dbPath);
 
 // Initialize database tables
 db.serialize(() => {
@@ -90,7 +96,9 @@ db.serialize(() => {
         expires_at DATETIME,
         max_views INTEGER DEFAULT -1,
         current_views INTEGER DEFAULT 0,
-        is_active BOOLEAN DEFAULT 1
+        is_active BOOLEAN DEFAULT 1,
+        is_edit_link BOOLEAN DEFAULT 0,
+        theme TEXT DEFAULT 'gradient'
     )`);
 
     // Files table
@@ -108,6 +116,7 @@ db.serialize(() => {
     // Index for faster lookups
     db.run(`CREATE INDEX IF NOT EXISTS idx_animal_url ON chats (animal_url)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_expires_at ON chats (expires_at)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_is_edit_link ON chats (is_edit_link)`);
 });
 
 // Utility functions
@@ -117,6 +126,15 @@ function generateAnimalUrl() {
         animals.push(ANIMAL_NAMES[Math.floor(Math.random() * ANIMAL_NAMES.length)]);
     }
     return animals.join('-');
+}
+
+function generateRandomString(length) {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
 }
 
 function calculateExpiryDate(expiry) {
@@ -132,6 +150,8 @@ function calculateExpiryDate(expiry) {
             return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
         case '1month':
             return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        case '2days':
+            return new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
         default:
             return null;
     }
@@ -200,7 +220,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 // Create/Share chat
 app.post('/api/share', async (req, res) => {
     try {
-        const { chats, persons, highlights, expiry, views, password } = req.body;
+        const { chats, highlights, expiry, views, password, theme, isEditLink, customUrl } = req.body;
 
         if (!chats || !Array.isArray(chats)) {
             return res.status(400).json({ error: 'Invalid chat data' });
@@ -208,31 +228,45 @@ app.post('/api/share', async (req, res) => {
 
         const id = uuidv4();
         let animalUrl;
-        const maxAttempts = 50;
 
-        // Generate unique animal URL with proper async handling
+        // Generate unique URL
         const findUniqueUrl = async () => {
+            // Use custom URL for edit links
+            if (customUrl) {
+                const existingChat = await new Promise((resolve, reject) => {
+                    db.get('SELECT id FROM chats WHERE animal_url = ?', [customUrl], (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row);
+                    });
+                });
+                
+                if (existingChat) {
+                    throw new Error('Custom URL already exists');
+                }
+                return customUrl;
+            }
+
+            // Generate animal URL for regular chats
+            const maxAttempts = 50;
             for (let attempts = 0; attempts < maxAttempts; attempts++) {
-                animalUrl = generateAnimalUrl();
+                const testUrl = generateAnimalUrl();
                 
                 try {
                     const existingChat = await new Promise((resolve, reject) => {
-                        db.get('SELECT id FROM chats WHERE animal_url = ?', [animalUrl], (err, row) => {
+                        db.get('SELECT id FROM chats WHERE animal_url = ?', [testUrl], (err, row) => {
                             if (err) reject(err);
                             else resolve(row);
                         });
                     });
                     
-                    // If no existing chat found, we have a unique URL
                     if (!existingChat) {
-                        console.log(`Generated unique URL: ${animalUrl} (attempt ${attempts + 1})`);
-                        return animalUrl;
+                        console.log(`Generated unique URL: ${testUrl} (attempt ${attempts + 1})`);
+                        return testUrl;
                     }
                     
-                    console.log(`URL collision: ${animalUrl} (attempt ${attempts + 1})`);
+                    console.log(`URL collision: ${testUrl} (attempt ${attempts + 1})`);
                 } catch (dbError) {
                     console.error('Database error checking URL:', dbError);
-                    // Continue trying with next URL on database error
                     continue;
                 }
             }
@@ -249,9 +283,9 @@ app.post('/api/share', async (req, res) => {
 
         const chatData = {
             chats,
-            persons,
             highlights,
-            created: new Date().toISOString()
+            created: new Date().toISOString(),
+            theme: theme || 'gradient'
         };
 
         const expiresAt = calculateExpiryDate(expiry);
@@ -259,9 +293,9 @@ app.post('/api/share', async (req, res) => {
         const passwordHash = await hashPassword(password);
 
         db.run(
-            `INSERT INTO chats (id, animal_url, data, password_hash, expires_at, max_views) 
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [id, animalUrl, JSON.stringify(chatData), passwordHash, expiresAt, maxViews],
+            `INSERT INTO chats (id, animal_url, data, password_hash, expires_at, max_views, is_edit_link, theme) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, animalUrl, JSON.stringify(chatData), passwordHash, expiresAt, maxViews, isEditLink ? 1 : 0, theme || 'gradient'],
             function(err) {
                 if (err) {
                     console.error('Database error:', err);
@@ -272,9 +306,10 @@ app.post('/api/share', async (req, res) => {
                 }
 
                 console.log(`Chat saved successfully with URL: ${animalUrl}`);
+                const urlPath = isEditLink ? `/edit/${animalUrl}` : `/chat/${animalUrl}`;
                 res.json({
                     success: true,
-                    url: `/chat/${animalUrl}`,
+                    url: urlPath,
                     id: animalUrl
                 });
             }
@@ -285,8 +320,8 @@ app.post('/api/share', async (req, res) => {
     }
 });
 
-// Get shared chat
-app.get('/api/chat/:animalUrl', async (req, res) => {
+// Get shared chat (both /chat/:url and /edit/:url)
+async function getChatHandler(req, res, isEditMode = false) {
     try {
         const { animalUrl } = req.params;
         const { password } = req.query;
@@ -310,8 +345,8 @@ app.get('/api/chat/:animalUrl', async (req, res) => {
                     return res.status(410).json({ error: 'Chat has expired' });
                 }
 
-                // Check view limit
-                if (isViewLimitExceeded(chat)) {
+                // Check view limit (only for regular chats, not edit links)
+                if (!isEditMode && !chat.is_edit_link && isViewLimitExceeded(chat)) {
                     db.run(`UPDATE chats SET is_active = 0 WHERE id = ?`, [chat.id]);
                     return res.status(410).json({ error: 'View limit exceeded' });
                 }
@@ -322,16 +357,19 @@ app.get('/api/chat/:animalUrl', async (req, res) => {
                     return res.status(401).json({ error: 'Invalid password', requiresPassword: !!chat.password_hash });
                 }
 
-                // Increment view count
-                db.run(`UPDATE chats SET current_views = current_views + 1 WHERE id = ?`, [chat.id]);
+                // Increment view count (only for regular chats)
+                if (!isEditMode && !chat.is_edit_link) {
+                    db.run(`UPDATE chats SET current_views = current_views + 1 WHERE id = ?`, [chat.id]);
+                }
 
                 const chatData = JSON.parse(chat.data);
                 res.json({
                     success: true,
                     data: chatData,
-                    views: chat.current_views + 1,
+                    views: chat.current_views + (isEditMode || chat.is_edit_link ? 0 : 1),
                     maxViews: chat.max_views,
-                    expiresAt: chat.expires_at
+                    expiresAt: chat.expires_at,
+                    isEditMode: isEditMode || chat.is_edit_link
                 });
             }
         );
@@ -339,13 +377,21 @@ app.get('/api/chat/:animalUrl', async (req, res) => {
         console.error('Get chat error:', error);
         res.status(500).json({ error: 'Failed to retrieve chat' });
     }
-});
+}
+
+app.get('/api/chat/:animalUrl', (req, res) => getChatHandler(req, res, false));
+app.get('/api/edit/:animalUrl', (req, res) => getChatHandler(req, res, true));
 
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));
 
 // Serve static files (frontend)
 app.use(express.static('public'));
+
+// Edit view route
+app.get('/edit/:animalUrl', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Chat view route
 app.get('/chat/:animalUrl', (req, res) => {
@@ -398,7 +444,7 @@ process.on('SIGINT', () => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Chat Share server running on port ${PORT}`);
+    console.log(`🚀 Spill The Tea server running on port ${PORT}`);
     console.log(`📝 Main app: http://localhost:${PORT}`);
     console.log(`❤️  Health check: http://localhost:${PORT}/health`);
 });
