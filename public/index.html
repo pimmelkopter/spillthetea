@@ -63,6 +63,25 @@
             background: var(--header-mono);
         }
 
+        .new-tea-button {
+            position: absolute;
+            bottom: 15px;
+            left: 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: block;
+        }
+
+        .new-tea-button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
@@ -549,14 +568,26 @@
                 margin-top: 15px;
             }
 
-            .main-content {
+            .new-tea-button {
+                position: static;
+                margin-bottom: 15px;
+                margin-top: 10px;
+                display: block;
+            }
+
+            .main-content > * {
                 padding: 20px;
             }
 
+            .main-content > .chat-preview {
+                padding: 0;
+            }
+
+            .chat-preview {
+                margin: 0 -20px 30px -20px;
+            }
+
             .messages-container {
-                width: calc(100% + 40px);
-                margin-left: -20px;
-                margin-right: -20px;
                 padding: 20px 15px;
             }
 
@@ -588,6 +619,7 @@
 <body>
     <div class="container">
         <div class="header">
+            <button class="new-tea-button" id="newTeaBtn" onclick="startNewTea()">🆕 New Tea</button>
             <div class="theme-switch">
                 <span>Gradient</span>
                 <input type="checkbox" id="themeToggle" onchange="toggleTheme()">
@@ -1340,6 +1372,17 @@
                     btn.textContent = originalText;
                 }, 2000);
             });
+        }
+
+        function startNewTea() {
+            const message = isEditMode ? 
+                'Alle ungespeicherten Änderungen gehen verloren. Möchtest du mit einem neuen Chat beginnen?' :
+                'Alle bisherigen Chats gehen verloren. Möchtest du mit einem neuen Chat beginnen?';
+                
+            if (confirm(message)) {
+                clearLocalStorage();
+                window.location.href = '/';
+            }
         }
 
         // Initialize
