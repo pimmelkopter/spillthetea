@@ -208,22 +208,21 @@ app.post('/api/share', async (req, res) => {
 
         const id = uuidv4();
         let animalUrl;
-        let attempts = 0;
-        const maxAttempts = 50; // Increased from 10
+        const maxAttempts = 50;
 
         // Generate unique animal URL with proper async handling
         const findUniqueUrl = async () => {
             for (let attempts = 0; attempts < maxAttempts; attempts++) {
-            animalUrl = generateAnimalUrl();
-            
+                animalUrl = generateAnimalUrl();
+                
                 try {
-            const existingChat = await new Promise((resolve, reject) => {
-                db.get('SELECT id FROM chats WHERE animal_url = ?', [animalUrl], (err, row) => {
-                    if (err) reject(err);
-                    else resolve(row);
-                });
-            });
-            
+                    const existingChat = await new Promise((resolve, reject) => {
+                        db.get('SELECT id FROM chats WHERE animal_url = ?', [animalUrl], (err, row) => {
+                            if (err) reject(err);
+                            else resolve(row);
+                        });
+                    });
+                    
                     // If no existing chat found, we have a unique URL
                     if (!existingChat) {
                         console.log(`Generated unique URL: ${animalUrl} (attempt ${attempts + 1})`);

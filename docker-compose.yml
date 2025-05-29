@@ -1,17 +1,33 @@
-version: '3.8'
-
 services:
-  chatshare:
+  spillthetea:
     build: .
-    ports:
-      - "3000:3000"
+    container_name: spillthetea
     environment:
+      - TZ=Europe/Berlin
       - NODE_ENV=production
       - PORT=3000
+      - VIRTUAL_HOST=spillthetea.raphaelfunck.de
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=spillthetea.raphaelfunck.de
+      - LETSENCRYPT_EMAIL=your-email@example.com
+      # Security
+      - BCRYPT_ROUNDS=12
+      - RATE_LIMIT_WINDOW=900000
+      - RATE_LIMIT_MAX=100
+      # File Upload
+      - MAX_FILE_SIZE=10485760
+      - UPLOAD_DIR=/app/uploads
+    user: 1000:1000
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    labels:
+      - crowdsec.enable=true
+      - crowdsec.labels.type=spillthetea
     restart: unless-stopped
+    networks:
+      - web
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
@@ -19,47 +35,6 @@ services:
       retries: 3
       start_period: 40s
 
-  # Optional: Nginx reverse proxy
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
-    depends_on:
-      - chatshare
-    restart: unless-stopped
-    profiles:
-      - nginx
-
-  # Optional: PostgreSQL database (instead of SQLite)
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: chatshare
-      POSTGRES_USER: chatshare
-      POSTGRES_PASSWORD: your_secure_password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    profiles:
-      - postgres
-
-  # Optional: Redis for caching/sessions
-  redis:
-    image: redis:alpine
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-    profiles:
-      - redis
-
-volumes:
-  postgres_data:
-  redis_data:
-
 networks:
-  default:
-    name: chatshare_network
+  web:
+    external: true
