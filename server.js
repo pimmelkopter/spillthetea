@@ -462,6 +462,10 @@ setInterval(() => {
 
 // API Routes
 
+app.get('/sw.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'sw.js'));
+});
+
 // Get VAPID public key
 app.get('/api/vapid-public-key', (req, res) => {
     res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
